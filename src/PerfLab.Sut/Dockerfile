@@ -15,6 +15,15 @@ RUN dotnet publish src/PerfLab.Sut/PerfLab.Sut.csproj \
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# The aspnet runtime image ships neither curl nor wget, so a Compose
+# healthcheck that reaches for either reports the container unhealthy while the
+# application serves traffic normally. The load tests wait on that healthcheck
+# before starting, so a false negative here stalls the whole suite.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app .
 
 # Server GC is already set in Directory.Build.props. It is repeated here as an
