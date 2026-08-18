@@ -10,4 +10,14 @@
     <PackageReference Include="Npgsql.DependencyInjection" Version="10.0.3" />
   </ItemGroup>
 
+  <!--
+    Top-level statements compile to an internal Program class, which
+    WebApplicationFactory needs in order to boot the real application rather
+    than a stand-in. The correctness tests assert on genuine endpoint
+    behaviour, so they must run the same composition root the load tests hit.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="PerfLab.Sut.Tests" />
+  </ItemGroup>
+
 </Project>

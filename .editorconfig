@@ -49,3 +49,10 @@ dotnet_naming_style.underscore_prefix.required_prefix = _
 # silently reports success for work that never happened.
 dotnet_diagnostic.CS4014.severity = error
 dotnet_diagnostic.CA2007.severity = none
+
+# Test projects only.
+[tests/**/*.cs]
+# Underscored test names are the convention for a reason: a failing test in CI
+# output should read as a sentence describing what broke, not as a camel-case
+# identifier. This is the one place where the naming rule earns its exception.
+dotnet_diagnostic.CA1707.severity = none
