@@ -1,2 +1,5 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PerfLab.Sut/PerfLab.Sut.csproj" />
+  </Folder>
 </Solution>
