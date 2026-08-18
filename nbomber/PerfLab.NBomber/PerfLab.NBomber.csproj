@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PerfLab.NBomber</RootNamespace>
+    <AssemblyName>perflab-nbomber</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    NBomber only. The NBomber.Http plugin would shorten the scenario bodies, but
+    it also decides for us what counts as a failure, and this suite needs 429 to
+    be a recorded outcome rather than an error. Driving HttpClient directly keeps
+    that judgement in the scenario where a reader can see it.
+  -->
+  <ItemGroup>
+    <PackageReference Include="NBomber" Version="6.6.0" />
+  </ItemGroup>
+
+</Project>

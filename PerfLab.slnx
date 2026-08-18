@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/nbomber/">
+    <Project Path="nbomber/PerfLab.NBomber/PerfLab.NBomber.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/PerfLab.Sut/PerfLab.Sut.csproj" />
   </Folder>
