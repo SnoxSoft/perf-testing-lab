@@ -4,9 +4,12 @@ using NBomber.CSharp;
 using PerfLab.NBomber;
 using PerfLab.NBomber.Profiles;
 
-// Load shapes are selected by name: perflab-nbomber <profile>. Anything after
-// the profile name is handed to NBomber itself, so its own switches still work.
-IProfile[] profiles = [new SmokeProfile()];
+// perflab-nbomber <profile> [--scenario=<name>] [nbomber args...]
+IProfile[] profiles =
+[
+    new SmokeProfile(),
+    new LoadProfile(),
+];
 
 string requested = args.Length > 0 ? args[0] : "smoke";
 
@@ -18,20 +21,46 @@ if (profile is null)
     Console.Error.WriteLine($"Unknown profile '{requested}'. Available profiles:");
     foreach (IProfile available in profiles)
     {
-        Console.Error.WriteLine($"  {available.Name,-12} {available.Question}");
+        Console.Error.WriteLine($"  {available.Name,-10} {available.Question}");
     }
 
     return 2;
 }
 
+// Running a single scenario is how you get attributable numbers. Every
+// database-backed scenario draws on the same connection pool, so in the full mix
+// one endpoint's latency is partly caused by its neighbours — which is realistic,
+// and useless when the question is "how fast is this one endpoint".
+const string ScenarioFlag = "--scenario=";
+
+string? targetScenario = args
+    .FirstOrDefault(a => a.StartsWith(ScenarioFlag, StringComparison.OrdinalIgnoreCase))
+    ?[ScenarioFlag.Length..];
+
+string[] nbomberArgs = args
+    .Skip(1)
+    .Where(a => !a.StartsWith(ScenarioFlag, StringComparison.OrdinalIgnoreCase))
+    .ToArray();
+
 Console.WriteLine($"profile:  {profile.Name}");
 Console.WriteLine($"question: {profile.Question}");
 Console.WriteLine($"target:   {SutClient.BaseAddress}");
+
+if (targetScenario is not null)
+{
+    Console.WriteLine($"scenario: {targetScenario} (isolated)");
+}
+
+if (RunLength.Scale is not 1.0)
+{
+    Console.WriteLine($"scale:    {RunLength.Scale:0.##}x — fewer samples, noisier percentiles, not a baseline");
+}
+
 Console.WriteLine();
 
 using HttpClient client = SutClient.Create();
 
-NodeStats stats = NBomberRunner
+NBomberContext context = NBomberRunner
     .RegisterScenarios(profile.Build(client))
     .WithTestSuite("perflab")
     .WithTestName(profile.Name)
@@ -39,16 +68,32 @@ NodeStats stats = NBomberRunner
     // This folder is gitignored: generated output does not belong in history,
     // while the curated baselines under results/ do.
     .WithReportFolder($"reports/{profile.Name}")
-    .WithReportFormats(ReportFormat.Html, ReportFormat.Md, ReportFormat.Csv, ReportFormat.Txt)
-    .Run(args.Skip(1).ToArray());
+    .WithReportFormats(ReportFormat.Html, ReportFormat.Md, ReportFormat.Csv, ReportFormat.Txt);
+
+if (targetScenario is not null)
+{
+    context = context.WithTargetScenarios(targetScenario);
+}
+
+NodeStats stats = context.Run(nbomberArgs);
 
 // A non-zero exit code is what makes this usable as a CI gate. Without it a
 // breached service level objective is just text in a log that nobody reads.
-int failed = stats.ScenarioStats.Count(scenario => scenario.Fail.Request.Count > 0);
+ScenarioStats[] withFailures = stats.ScenarioStats
+    .Where(scenario => scenario.Fail.Request.Count > 0)
+    .ToArray();
 
-if (failed > 0)
+if (withFailures.Length > 0)
 {
-    Console.Error.WriteLine($"{failed} scenario(s) recorded failures. See reports/{profile.Name}.");
+    Console.Error.WriteLine();
+    foreach (ScenarioStats scenario in withFailures)
+    {
+        Console.Error.WriteLine(
+            $"FAIL {scenario.ScenarioName}: {scenario.Fail.Request.Count} failed of " +
+            $"{scenario.Ok.Request.Count + scenario.Fail.Request.Count}");
+    }
+
+    Console.Error.WriteLine($"See reports/{profile.Name}.");
     return 1;
 }
 
