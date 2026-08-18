@@ -1,0 +1,63 @@
+# The system under test, deliberately constrained.
+#
+# The CPU and memory limits below are the most important lines in this file. An
+# unconstrained container inherits whatever the host happens to have spare, so
+# the measured breaking point moves with background load and no two runs can be
+# compared. Pinning them makes a result reproducible; changing them is a
+# deliberate experiment, not an accident.
+
+name: perflab
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: perflab
+      POSTGRES_USER: perflab
+      POSTGRES_PASSWORD: perflab
+      # Fixed shared_buffers so PostgreSQL does not size itself differently on
+      # a different host. max_connections stays well above the application pool
+      # ceiling, keeping the pool the bottleneck rather than the server.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c log_min_duration_statement=1000
+    ports:
+      - "5432:5432"
+    cpus: 2.0
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perflab -d perflab"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    tmpfs:
+      # Data lives in memory. The suite reseeds from scratch, and keeping disk
+      # I/O out of the picture removes a variable nobody here is testing.
+      - /var/lib/postgresql/data
+
+  sut:
+    build:
+      context: .
+      dockerfile: src/PerfLab.Sut/Dockerfile
+    environment:
+      ConnectionStrings__Sut: "Host=postgres;Port=5432;Database=perflab;Username=perflab;Password=perflab"
+    ports:
+      - "8080:8080"
+    # Two cores and 1 GB. Small enough that the pathologies are reachable from a
+    # laptop-hosted load generator without the generator saturating first.
+    cpus: 2.0
+    mem_limit: 1g
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      # Long start period: the cold-start pathology delays the first request on
+      # purpose, and the healthcheck must not race it.
+      start_period: 15s

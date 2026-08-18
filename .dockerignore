@@ -1,0 +1,23 @@
+# Without this file the host's obj/ directory is copied into the image, and its
+# project.assets.json still points at Windows NuGet paths. The restore layer
+# then appears to succeed while `dotnet publish --no-restore` fails to find
+# packages it just restored.
+**/bin/
+**/obj/
+
+.git/
+.github/
+.vs/
+.idea/
+.vscode/
+
+k6/
+results/
+docs/
+tests/
+_perf-lessons/
+
+**/*.md
+**/.env
+**/docker-compose*.yml
+**/Dockerfile
