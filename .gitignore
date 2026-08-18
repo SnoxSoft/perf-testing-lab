@@ -1,0 +1,52 @@
+## .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider / VS / VS Code
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+## Test + coverage output
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+*.coverage
+
+## NuGet
+*.nupkg
+packages/
+!packages/build/
+
+## Local environment overrides
+.env
+.env.local
+appsettings.Development.local.json
+docker-compose.override.yml
+
+## Load test output — regenerated on every run.
+## Curated baselines live in results/baselines/ and are committed.
+nbomber/**/reports/
+k6/output/
+*.ndjson
+
+## Personal study notes are kept outside this repo entirely
+## (../_perf-lessons). These are a safety net only.
+_perf-lessons/
+.lessons/
+NOTES.local.md
+
+## OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
