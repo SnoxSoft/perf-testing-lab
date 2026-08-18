@@ -83,8 +83,8 @@ process is the opposite of that. The reasoning is in
 Built in phases; this section tracks what actually runs today.
 
 - [x] Repository scaffolding and build configuration
-- [ ] System under test and Docker Compose environment
-- [ ] Testcontainers correctness guard
+- [x] System under test and Docker Compose environment
+- [x] Testcontainers correctness guard
 - [ ] NBomber suite
 - [ ] k6 suite
 - [ ] InfluxDB + Grafana, committed baselines
