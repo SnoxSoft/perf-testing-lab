@@ -9,6 +9,9 @@ IProfile[] profiles =
 [
     new SmokeProfile(),
     new LoadProfile(),
+    CapacityProfile.PooledQueue(),
+    CapacityProfile.LockContention(),
+    CapacityProfile.Ceiling(),
 ];
 
 string requested = args.Length > 0 ? args[0] : "smoke";
@@ -89,12 +92,20 @@ if (withFailures.Length > 0)
     foreach (ScenarioStats scenario in withFailures)
     {
         Console.Error.WriteLine(
-            $"FAIL {scenario.ScenarioName}: {scenario.Fail.Request.Count} failed of " +
+            $"{(profile.FailOnErrors ? "FAIL" : "note")} {scenario.ScenarioName}: " +
+            $"{scenario.Fail.Request.Count} failed of " +
             $"{scenario.Ok.Request.Count + scenario.Fail.Request.Count}");
     }
 
     Console.Error.WriteLine($"See reports/{profile.Name}.");
-    return 1;
+
+    if (profile.FailOnErrors)
+    {
+        return 1;
+    }
+
+    Console.Error.WriteLine(
+        "Exit code 0: this profile expects to exceed capacity, so failures above the knee are the result.");
 }
 
 return 0;

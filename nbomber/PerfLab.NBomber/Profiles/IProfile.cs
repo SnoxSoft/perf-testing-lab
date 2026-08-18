@@ -18,5 +18,16 @@ public interface IProfile
     /// <summary>The question this shape answers. Printed before every run.</summary>
     string Question { get; }
 
+    /// <summary>
+    /// Whether a recorded failure should fail the run.
+    ///
+    /// True for shapes that assert a service level: a failure there is a
+    /// regression and CI should stop. False for exploratory shapes that are
+    /// designed to exceed capacity — a capacity ramp is *supposed* to end above
+    /// the knee, and treating the resulting timeouts as a broken test would make
+    /// the profile useless.
+    /// </summary>
+    bool FailOnErrors => true;
+
     ScenarioProps[] Build(HttpClient client);
 }

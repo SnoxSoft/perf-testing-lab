@@ -19,8 +19,8 @@ public static class SutScenarios
     /// The reference point: one indexed join. Every other latency figure in the
     /// suite is only meaningful relative to this one.
     /// </summary>
-    public static ScenarioProps Baseline(HttpClient client) =>
-        Scenario.Create("baseline", async context =>
+    public static ScenarioProps Baseline(HttpClient client, string name = "baseline") =>
+        Scenario.Create(name, async context =>
         {
             Response<string> response = await Step.Run("query", context, () =>
                 SendAsync(client, HttpMethod.Get, "/api/catalog/products"));
@@ -33,8 +33,8 @@ public static class SutScenarios
     /// it cannot reach many multiples of the throughput of the endpoint under
     /// test, the generator is the bottleneck and the result is an artefact.
     /// </summary>
-    public static ScenarioProps GeneratorCeiling(HttpClient client) =>
-        Scenario.Create("generator_ceiling", async context =>
+    public static ScenarioProps GeneratorCeiling(HttpClient client, string name = "generator_ceiling") =>
+        Scenario.Create(name, async context =>
             await SendAsync(client, HttpMethod.Get, "/api/echo"));
 
     /// <summary>
@@ -59,16 +59,16 @@ public static class SutScenarios
     /// hold time — 20 / 0.05s = 400 req/s at the defaults. Drive this past the
     /// ceiling and latency grows linearly while throughput stays flat.
     /// </summary>
-    public static ScenarioProps PooledQueue(HttpClient client) =>
-        Scenario.Create("pooled_queue", async context =>
+    public static ScenarioProps PooledQueue(HttpClient client, string name = "pooled_queue") =>
+        Scenario.Create(name, async context =>
             await SendAsync(client, HttpMethod.Get, "/api/queue/pooled"));
 
     /// <summary>
     /// Global lock. Serialised 5ms critical section caps throughput near 200/s
     /// regardless of core count; the interesting number is p99, not p50.
     /// </summary>
-    public static ScenarioProps LockContention(HttpClient client) =>
-        Scenario.Create("lock_contention", async context =>
+    public static ScenarioProps LockContention(HttpClient client, string name = "lock_contention") =>
+        Scenario.Create(name, async context =>
             await SendAsync(client, HttpMethod.Post, "/api/queue/reserve"));
 
     /// <summary>
