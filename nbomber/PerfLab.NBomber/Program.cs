@@ -1,8 +1,10 @@
 using NBomber.Contracts;
+
 using NBomber.Contracts.Stats;
 using NBomber.CSharp;
 using PerfLab.NBomber;
 using PerfLab.NBomber.Profiles;
+using PerfLab.NBomber.Scenarios;
 
 // perflab-nbomber <profile> [--scenario=<name>] [nbomber args...]
 IProfile[] profiles =
@@ -12,6 +14,8 @@ IProfile[] profiles =
     CapacityProfile.PooledQueue(),
     CapacityProfile.LockContention(),
     CapacityProfile.Ceiling(),
+    new StressProfile(),
+    new SpikeProfile(),
     new SloBreachProfile(),
 ];
 
@@ -91,6 +95,23 @@ NodeStats stats = context.Run(nbomberArgs);
 ThresholdResult[] breached = stats.Thresholds
     .Where(threshold => threshold.IsFailed)
     .ToArray();
+
+// What the observer scenario saw on the server. For the stress and endurance
+// shapes this is the actual result: client latency says something is wrong,
+// while in-flight count and heap growth say what.
+SutObserver.Observation observed = SutObserver.Current;
+
+if (observed.Samples > 0)
+{
+    Console.WriteLine();
+    Console.WriteLine($"observed on the server ({observed.Samples} samples, peak values):");
+    Console.WriteLine($"  dependency calls in flight   {observed.PeakDependencyInFlight,10:N0}");
+    Console.WriteLine($"  managed heap                 {observed.PeakHeapMb,10:N1} MB peak");
+    Console.WriteLine($"  managed heap at end          {observed.FinalHeapMb,10:N1} MB");
+    Console.WriteLine($"  cached report entries        {observed.PeakCachedReportEntries,10:N0}");
+    Console.WriteLine($"  threads                      {observed.PeakThreadCount,10:N0}");
+    Console.WriteLine($"  gen2 collections             {observed.Gen2Collections,10:N0}");
+}
 
 // Always report how many thresholds were evaluated, including on a clean run.
 // A threshold that never fires is indistinguishable from a threshold that

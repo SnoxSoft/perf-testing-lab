@@ -77,9 +77,29 @@ public static class SutScenarios
     /// behind a cascading failure. Under a closed model it will not, and that
     /// difference is the whole argument for choosing the model deliberately.
     /// </summary>
-    public static ScenarioProps SlowDependency(HttpClient client) =>
-        Scenario.Create("slow_dependency", async context =>
+    public static ScenarioProps SlowDependency(HttpClient client, string name = "slow_dependency") =>
+        Scenario.Create(name, async context =>
             await SendAsync(client, HttpMethod.Get, "/api/queue/enrich?subject=perflab"));
+
+    /// <summary>
+    /// The same two second dependency, awaited while holding a pooled connection.
+    ///
+    /// Paired with <see cref="SlowDependency"/> this is the most useful contrast
+    /// in the suite. Identical latency, identical concurrency, and the only
+    /// difference is whether a scarce resource is held across the wait:
+    ///
+    ///   /enrich          no pool involvement    flat 2s at 400 rps, no failures
+    ///   /enrich-holding  holds a connection     ceiling of 20 / 2s = 10 rps
+    ///
+    /// In-flight count alone does not decide whether a slow dependency is
+    /// survivable. What decides it is whether that in-flight work is holding
+    /// something else hostage.
+    /// </summary>
+    public static ScenarioProps SlowDependencyHolding(
+        HttpClient client,
+        string name = "slow_dependency_holding") =>
+        Scenario.Create(name, async context =>
+            await SendAsync(client, HttpMethod.Get, "/api/queue/enrich-holding?subject=perflab"));
 
     /// <summary>
     /// The endurance target. Each iteration requests a key that has never been
@@ -90,8 +110,8 @@ public static class SutScenarios
     /// single most common way a load test proves nothing: it measures the cache
     /// and the leak never appears.
     /// </summary>
-    public static ScenarioProps UniqueReports(HttpClient client) =>
-        Scenario.Create("unique_reports", async context =>
+    public static ScenarioProps UniqueReports(HttpClient client, string name = "unique_reports") =>
+        Scenario.Create(name, async context =>
             await SendAsync(
                 client,
                 HttpMethod.Get,
@@ -102,8 +122,8 @@ public static class SutScenarios
     /// Run this alongside <see cref="UniqueReports"/> and the flat memory graph
     /// is the point being made.
     /// </summary>
-    public static ScenarioProps RepeatedReports(HttpClient client) =>
-        Scenario.Create("repeated_reports", async context =>
+    public static ScenarioProps RepeatedReports(HttpClient client, string name = "repeated_reports") =>
+        Scenario.Create(name, async context =>
             await SendAsync(client, HttpMethod.Get, "/api/reports/always-the-same-key"));
 
     /// <summary>
@@ -125,8 +145,8 @@ public static class SutScenarios
     /// status code is still attached, so the split stays visible in the report
     /// and a threshold can budget for it explicitly.
     /// </summary>
-    public static ScenarioProps RateLimitedSearch(HttpClient client) =>
-        Scenario.Create("rate_limited_search", async context =>
+    public static ScenarioProps RateLimitedSearch(HttpClient client, string name = "rate_limited_search") =>
+        Scenario.Create(name, async context =>
             await SendAsync(
                 client,
                 HttpMethod.Get,
