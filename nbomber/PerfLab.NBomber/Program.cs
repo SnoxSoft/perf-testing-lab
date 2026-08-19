@@ -12,6 +12,7 @@ IProfile[] profiles =
     CapacityProfile.PooledQueue(),
     CapacityProfile.LockContention(),
     CapacityProfile.Ceiling(),
+    new SloBreachProfile(),
 ];
 
 string requested = args.Length > 0 ? args[0] : "smoke";
@@ -82,6 +83,46 @@ NodeStats stats = context.Run(nbomberArgs);
 
 // A non-zero exit code is what makes this usable as a CI gate. Without it a
 // breached service level objective is just text in a log that nobody reads.
+//
+// Thresholds are checked before failures on purpose. Saturation shows up as a
+// latency breach long before it shows up as an error, so the threshold result is
+// both the earlier and the more informative signal — the pool endpoint served
+// 500 req/s at 7.1 seconds latency with zero failed requests.
+ThresholdResult[] breached = stats.Thresholds
+    .Where(threshold => threshold.IsFailed)
+    .ToArray();
+
+// Always report how many thresholds were evaluated, including on a clean run.
+// A threshold that never fires is indistinguishable from a threshold that
+// cannot fire, and a gate silently reduced to zero checks still exits 0.
+Console.WriteLine();
+Console.WriteLine(
+    $"service level objectives: {stats.Thresholds.Length - breached.Length} passed, " +
+    $"{breached.Length} breached");
+
+if (breached.Length > 0)
+{
+    Console.Error.WriteLine();
+    Console.Error.WriteLine($"{breached.Length} service level objective(s) breached:");
+
+    foreach (ThresholdResult threshold in breached)
+    {
+        string scope = string.IsNullOrWhiteSpace(threshold.StepName)
+            ? threshold.ScenarioName
+            : $"{threshold.ScenarioName}/{threshold.StepName}";
+
+        Console.Error.WriteLine($"  BREACH {scope}: {threshold.CheckExpression}");
+
+        if (!string.IsNullOrWhiteSpace(threshold.ExceptionMsg))
+        {
+            Console.Error.WriteLine($"         {threshold.ExceptionMsg}");
+        }
+    }
+
+    Console.Error.WriteLine($"See reports/{profile.Name}.");
+    return 1;
+}
+
 ScenarioStats[] withFailures = stats.ScenarioStats
     .Where(scenario => scenario.Fail.Request.Count > 0)
     .ToArray();

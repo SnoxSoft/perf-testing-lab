@@ -1,6 +1,7 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.NBomber.Thresholds;
 
 namespace PerfLab.NBomber.Profiles;
 
@@ -74,16 +75,16 @@ public sealed class LoadProfile : IProfile
     /// </summary>
     public ScenarioProps[] Build(HttpClient client) =>
     [
-        Steady(SutScenarios.Baseline(client), copies: 2),
-        Steady(SutScenarios.NPlusOneComparison(client), copies: 3),
-        Steady(SutScenarios.PooledQueue(client), copies: DatabaseBackedCopies),
+        Steady(SutScenarios.Baseline(client).WithBaselineSlo(), copies: 2),
+        Steady(SutScenarios.NPlusOneComparison(client).WithNPlusOneSlo(), copies: 3),
+        Steady(SutScenarios.PooledQueue(client).WithPooledQueueSlo(), copies: DatabaseBackedCopies),
 
         // No database involvement, so this is bounded by the global lock rather
         // than the pool. The critical section is serialised at 5ms, which caps
         // throughput near 200/s no matter how many callers arrive — so even 2
         // copies sit past the point where queueing begins. p50 stays healthy and
         // p99 is where the queue becomes visible.
-        Steady(SutScenarios.LockContention(client), copies: 2),
+        Steady(SutScenarios.LockContention(client).WithLockContentionSlo(), copies: 2),
 
         // repeated_reports is deliberately absent, and the reason is the most
         // useful thing in this file.
