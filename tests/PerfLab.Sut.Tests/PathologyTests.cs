@@ -240,6 +240,53 @@ public sealed class PathologyTests(PostgresFixture postgres)
         Assert.NotNull(snapshot["fragmentedBytes"]);
     }
 
+    [Fact]
+    public async Task Untimed_dependency_alone_holds_no_scarce_resource()
+    {
+        await using SutApplication app = SutApplication.Create(
+            postgres,
+            ("MaxPoolSize", "2"),
+            ("SlowDependencyLatency", "00:00:00.300"));
+        using HttpClient client = app.CreateClient();
+
+        // Four concurrent callers against a pool of two. This endpoint never
+        // touches the pool, so nothing queues: a pending Task.Delay is a timer
+        // entry, and concurrency costs essentially nothing.
+        JsonNode[] results = await Task.WhenAll(
+            Enumerable.Range(0, 4).Select(_ =>
+                GetJsonAsync(client, "/api/queue/enrich?subject=test")));
+
+        Assert.All(results, result =>
+            Assert.True(
+                (double)result["totalMs"]! < 600,
+                $"expected roughly one dependency latency, observed {(double)result["totalMs"]!:F0}ms"));
+    }
+
+    [Fact]
+    public async Task Holding_variant_occupies_a_connection_for_the_whole_dependency_call()
+    {
+        await using SutApplication app = SutApplication.Create(
+            postgres,
+            ("MaxPoolSize", "2"),
+            ("SlowDependencyLatency", "00:00:00.300"));
+        using HttpClient client = app.CreateClient();
+
+        // Identical dependency latency, identical concurrency, but the
+        // connection is held across the wait. Two connections at 300ms each
+        // means the second pair of callers cannot start until the first
+        // releases, so the ceiling collapses to pool size / latency.
+        JsonNode[] results = await Task.WhenAll(
+            Enumerable.Range(0, 4).Select(_ =>
+                GetJsonAsync(client, "/api/queue/enrich-holding?subject=test")));
+
+        Assert.All(results, result =>
+            Assert.Equal(2 / 0.3, (double)result["theoreticalCeilingRps"]!, tolerance: 0.1));
+
+        // Somebody waited for a connection. That is the entire difference from
+        // the endpoint above, and the reason one of them collapses under load.
+        Assert.Contains(results, result => (double)result["waitedForConnectionMs"]! > 200);
+    }
+
     private static async Task<JsonNode> GetJsonAsync(HttpClient client, string path)
     {
         using HttpResponseMessage response = await client.GetAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);

@@ -74,6 +74,50 @@ public static class QueueEndpoints
                 InFlight: dependency.InFlight));
         })
         .WithSummary("Downstream call with no timeout. In-flight work accumulates without bound.");
+
+        // The same two second dependency, awaited while holding a pooled
+        // connection. This is the version that actually falls over, and the
+        // contrast with /enrich above is the point.
+        //
+        // On its own, unbounded in-flight async work is close to free in .NET: a
+        // pending Task.Delay is a timer entry, so hundreds of concurrent calls
+        // cost almost nothing and /enrich stays at a flat 2s under heavy load.
+        // Holding a connection across the same wait changes the arithmetic
+        // completely, because the scarce resource is now occupied for the whole
+        // duration:
+        //
+        //   ceiling = pool size / dependency latency = 20 / 2s = 10 req/s
+        //
+        // A 400 req/s endpoint becomes a 10 req/s endpoint. Every other
+        // database-backed endpoint starves too, because they share the pool —
+        // which is how one slow downstream service takes down features that have
+        // no dependency on it at all.
+        group.MapGet("/enrich-holding", async (
+            NpgsqlDataSource dataSource,
+            SlowDependency dependency,
+            PathologyOptions options,
+            string? subject,
+            CancellationToken cancellationToken) =>
+        {
+            long startedAt = Stopwatch.GetTimestamp();
+
+            await using NpgsqlConnection connection =
+                await dataSource.OpenConnectionAsync(cancellationToken);
+
+            TimeSpan waited = Stopwatch.GetElapsedTime(startedAt);
+
+            // Connection acquired and held for the entire downstream call.
+            string result = await dependency.EnrichAsync(subject ?? "anonymous");
+
+            return Results.Ok(new HoldingEnrichResponse(
+                Result: result,
+                WaitedForConnectionMs: Math.Round(waited.TotalMilliseconds, 2),
+                TotalMs: Math.Round(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, 2),
+                InFlight: dependency.InFlight,
+                TheoreticalCeilingRps: Math.Round(
+                    options.MaxPoolSize / options.SlowDependencyLatency.TotalSeconds, 2)));
+        })
+        .WithSummary("Slow dependency held across a pooled connection. Ceiling collapses to pool/latency.");
     }
 
     private sealed record QueueResponse(double WaitedForConnectionMs, double TotalMs, int PoolSize);
@@ -81,4 +125,11 @@ public static class QueueEndpoints
     private sealed record ReservationResponse(long ReservationId, double TotalMs, long PeakWaiters);
 
     private sealed record EnrichResponse(string Result, double TotalMs, long InFlight);
+
+    private sealed record HoldingEnrichResponse(
+        string Result,
+        double WaitedForConnectionMs,
+        double TotalMs,
+        long InFlight,
+        double TheoreticalCeilingRps);
 }
