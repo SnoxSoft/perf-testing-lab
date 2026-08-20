@@ -45,6 +45,7 @@ builder.Services.AddSingleton(serviceProvider =>
 builder.Services.AddSingleton<UnboundedReportCache>();
 builder.Services.AddSingleton<InventoryLock>();
 builder.Services.AddSingleton<SlowDependency>();
+builder.Services.AddSingleton<TokenIssuer>();
 builder.Services.AddHostedService<DatabaseInitializer>();
 
 // A real rate limiter rather than a simulated one, so the 429 a spike test sees
@@ -103,5 +104,6 @@ app.MapCatalogEndpoints();
 app.MapQueueEndpoints();
 app.MapReportEndpoints();
 app.MapSearchEndpoints();
+app.MapAuthEndpoints();
 
 await app.RunAsync();

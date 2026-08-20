@@ -68,4 +68,20 @@ public sealed class PathologyOptions
     /// difference measurable rather than theoretical.
     /// </summary>
     public TimeSpan ColdStartPenalty { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Cost of issuing a token, standing in for a password hash.
+    ///
+    /// Large enough that authenticating once per iteration is visible in the
+    /// results rather than merely theoretically wasteful: at 25ms it dominates
+    /// the 2ms endpoint it guards by an order of magnitude.
+    /// </summary>
+    public TimeSpan TokenIssuanceCost { get; init; } = TimeSpan.FromMilliseconds(25);
+
+    /// <summary>
+    /// Token lifetime. Short enough that a long run has to handle refresh, which
+    /// is the part of correlation most tests get wrong — a cached token works
+    /// perfectly until it silently does not.
+    /// </summary>
+    public TimeSpan TokenLifetime { get; init; } = TimeSpan.FromSeconds(60);
 }

@@ -287,6 +287,126 @@ public sealed class PathologyTests(PostgresFixture postgres)
         Assert.Contains(results, result => (double)result["waitedForConnectionMs"]! > 200);
     }
 
+    [Fact]
+    public async Task Token_issuance_is_expensive_and_validation_is_not()
+    {
+        await using SutApplication app = SutApplication.Create(
+            postgres,
+            ("TokenIssuanceCost", "00:00:00.200"));
+        using HttpClient client = app.CreateClient();
+
+        long issueStartedAt = Stopwatch.GetTimestamp();
+        JsonNode token = await PostJsonAsync(client, "/api/auth/token?user=alice");
+        TimeSpan issuing = Stopwatch.GetElapsedTime(issueStartedAt);
+
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/orders/mine");
+        request.Headers.Add("Authorization", $"Bearer {(string)token["token"]!}");
+
+        long useStartedAt = Stopwatch.GetTimestamp();
+        using HttpResponseMessage response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+        TimeSpan using_ = Stopwatch.GetElapsedTime(useStartedAt);
+
+        response.EnsureSuccessStatusCode();
+
+        // The asymmetry is the entire reason a correlation test caches tokens.
+        Assert.True(issuing >= TimeSpan.FromMilliseconds(180), $"issuing took {issuing.TotalMilliseconds:F0}ms");
+        Assert.True(using_ < issuing, $"validation ({using_.TotalMilliseconds:F0}ms) should be far cheaper than issuance");
+    }
+
+    [Fact]
+    public async Task Protected_endpoint_rejects_missing_tampered_and_expired_tokens()
+    {
+        await using SutApplication app = SutApplication.Create(
+            postgres,
+            ("TokenIssuanceCost", "00:00:00"),
+            ("TokenLifetime", "00:00:01"));
+        using HttpClient client = app.CreateClient();
+
+        // No token at all.
+        Assert.Equal(HttpStatusCode.Unauthorized, await StatusOfAsync(client, token: null));
+
+        // Structurally valid base64 but not a token we signed.
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            await StatusOfAsync(client, token: Convert.ToBase64String("alice|99999999999|forged"u8.ToArray())));
+
+        JsonNode issued = await PostJsonAsync(client, "/api/auth/token?user=alice");
+        string token = (string)issued["token"]!;
+
+        // Valid right now.
+        Assert.Equal(HttpStatusCode.OK, await StatusOfAsync(client, token));
+
+        // A one second lifetime, so waiting past it must revoke access. This is
+        // the failure a cached-token test hits after running for a while: the
+        // token works perfectly until it silently does not.
+        await Task.Delay(TimeSpan.FromMilliseconds(1_400), TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, await StatusOfAsync(client, token));
+    }
+
+    [Fact]
+    public async Task Protected_endpoint_returns_data_belonging_to_the_token_holder()
+    {
+        await using SutApplication app = SutApplication.Create(
+            postgres,
+            ("TokenIssuanceCost", "00:00:00"));
+        using HttpClient client = app.CreateClient();
+
+        foreach (string user in new[] { "alice", "bob", "carol" })
+        {
+            JsonNode issued = await PostJsonAsync(client, $"/api/auth/token?user={user}");
+
+            using HttpRequestMessage request = new(HttpMethod.Get, "/api/orders/mine");
+            request.Headers.Add("Authorization", $"Bearer {(string)issued["token"]!}");
+
+            using HttpResponseMessage response = await client.SendAsync(
+                request,
+                TestContext.Current.CancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            JsonNode body = JsonNode.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!;
+
+            // A correlation test that never checks whose data came back will not
+            // notice every virtual user sharing one identity.
+            Assert.Equal(user, (string)body["user"]!);
+            Assert.All(
+                body["orders"]!.AsArray(),
+                order => Assert.StartsWith(user, (string)order!["reference"]!, StringComparison.Ordinal));
+        }
+    }
+
+    private static async Task<HttpStatusCode> StatusOfAsync(HttpClient client, string? token)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/orders/mine");
+
+        if (token is not null)
+        {
+            request.Headers.Add("Authorization", $"Bearer {token}");
+        }
+
+        using HttpResponseMessage response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        return response.StatusCode;
+    }
+
+    private static async Task<JsonNode> PostJsonAsync(HttpClient client, string path)
+    {
+        using HttpResponseMessage response = await client.PostAsync(
+            new Uri(path, UriKind.Relative),
+            content: null,
+            TestContext.Current.CancellationToken);
+
+        response.EnsureSuccessStatusCode();
+
+        string payload = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        return JsonNode.Parse(payload)
+            ?? throw new InvalidOperationException($"{path} returned a null JSON body");
+    }
+
     private static async Task<JsonNode> GetJsonAsync(HttpClient client, string path)
     {
         using HttpResponseMessage response = await client.GetAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);
