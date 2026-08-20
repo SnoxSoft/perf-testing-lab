@@ -17,6 +17,7 @@ IProfile[] profiles =
     new StressProfile(),
     new SpikeProfile(),
     new EnduranceProfile(),
+    new CorrelationProfile(),
     new SloBreachProfile(),
 ];
 

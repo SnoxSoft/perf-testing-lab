@@ -85,7 +85,7 @@ Built in phases; this section tracks what actually runs today.
 - [x] Repository scaffolding and build configuration
 - [x] System under test and Docker Compose environment
 - [x] Testcontainers correctness guard
-- [ ] NBomber suite
+- [x] NBomber suite
 - [ ] k6 suite
 - [ ] InfluxDB + Grafana, committed baselines
 - [ ] CI pipelines and methodology docs
