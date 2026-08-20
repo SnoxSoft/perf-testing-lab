@@ -30,8 +30,11 @@ namespace PerfLab.NBomber.Scenarios;
 public static class SutObserver
 {
     private static long _peakDependencyInFlight;
+    private static double _firstHeapMb;
     private static double _peakHeapMb;
     private static double _finalHeapMb;
+    private static double _firstWorkingSetMb;
+    private static double _peakWorkingSetMb;
     private static int _peakCachedEntries;
     private static int _peakThreadCount;
     private static int _gen2Collections;
@@ -47,17 +50,69 @@ public static class SutObserver
     public sealed record Observation(
         long Samples,
         long PeakDependencyInFlight,
+        double FirstHeapMb,
         double PeakHeapMb,
         double FinalHeapMb,
+        double FirstWorkingSetMb,
+        double PeakWorkingSetMb,
         int PeakCachedReportEntries,
         int PeakThreadCount,
-        int Gen2Collections);
+        int Gen2Collections)
+    {
+        /// <summary>
+        /// Growth from the first sample to the peak. This is the number a soak
+        /// test exists to produce, and it is meaningless without the duration it
+        /// was measured over — see <see cref="GrowthMbPerMinute"/>.
+        /// </summary>
+        public double HeapGrowthMb => PeakHeapMb - FirstHeapMb;
+
+        /// <summary>
+        /// A rate rather than a total, because a total invites the wrong
+        /// conclusion. 80MB of growth is unremarkable over a week and alarming
+        /// over four minutes, and only the rate lets you extrapolate to the
+        /// container limit.
+        ///
+        /// Samples are one second apart, so the sample count is the elapsed
+        /// seconds.
+        /// </summary>
+        public double GrowthMbPerMinute =>
+            Samples > 1 ? HeapGrowthMb / (Samples / 60.0) : 0;
+
+        /// <summary>
+        /// Resident growth, which is what the container limit actually applies to.
+        ///
+        /// Extrapolating managed heap against the memory limit understates the
+        /// risk, sometimes badly: this service starts with a 1.3MB managed heap
+        /// inside an 89MB working set, so nearly all of the limit is already spent
+        /// before a single byte leaks. The managed heap says what is leaking;
+        /// resident memory says how long there is left.
+        /// </summary>
+        public double WorkingSetGrowthMb => PeakWorkingSetMb - FirstWorkingSetMb;
+
+        public double WorkingSetGrowthMbPerMinute =>
+            Samples > 1 ? WorkingSetGrowthMb / (Samples / 60.0) : 0;
+
+        /// <summary>
+        /// Minutes until resident memory reaches the container limit at the
+        /// observed rate. Null when nothing is growing.
+        ///
+        /// This is the number a soak exists to produce. A growth rate is not a
+        /// finding until it is expressed as time remaining.
+        /// </summary>
+        public double? MinutesToLimit(double containerLimitMb) =>
+            WorkingSetGrowthMbPerMinute > 0.5
+                ? Math.Max(0, containerLimitMb - PeakWorkingSetMb) / WorkingSetGrowthMbPerMinute
+                : null;
+    }
 
     public static Observation Current => new(
         Samples: Interlocked.Read(ref _samples),
         PeakDependencyInFlight: Interlocked.Read(ref _peakDependencyInFlight),
+        FirstHeapMb: _firstHeapMb,
         PeakHeapMb: _peakHeapMb,
         FinalHeapMb: _finalHeapMb,
+        FirstWorkingSetMb: _firstWorkingSetMb,
+        PeakWorkingSetMb: _peakWorkingSetMb,
         PeakCachedReportEntries: _peakCachedEntries,
         PeakThreadCount: _peakThreadCount,
         Gen2Collections: _gen2Collections);
@@ -80,12 +135,21 @@ public static class SutObserver
 
             long inFlight = (long)snapshot["dependencyCallsInFlight"]!;
             double heapMb = (long)snapshot["heapBytes"]! / 1024.0 / 1024.0;
+            double workingSetMb = (long)snapshot["workingSetBytes"]! / 1024.0 / 1024.0;
 
             // Plain reads and writes: the observer runs at one iteration per
             // second with a single instance, so there is never more than one
             // sampler in flight.
+            if (_samples == 0)
+            {
+                // Baseline before load has had time to accumulate anything.
+                _firstHeapMb = heapMb;
+                _firstWorkingSetMb = workingSetMb;
+            }
+
             _peakDependencyInFlight = Math.Max(_peakDependencyInFlight, inFlight);
             _peakHeapMb = Math.Max(_peakHeapMb, heapMb);
+            _peakWorkingSetMb = Math.Max(_peakWorkingSetMb, workingSetMb);
             _finalHeapMb = heapMb;
             _peakCachedEntries = Math.Max(_peakCachedEntries, (int)snapshot["cachedReportEntries"]!);
             _peakThreadCount = Math.Max(_peakThreadCount, (int)snapshot["threadCount"]!);

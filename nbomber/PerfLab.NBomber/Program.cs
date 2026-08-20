@@ -16,6 +16,7 @@ IProfile[] profiles =
     CapacityProfile.Ceiling(),
     new StressProfile(),
     new SpikeProfile(),
+    new EnduranceProfile(),
     new SloBreachProfile(),
 ];
 
@@ -101,16 +102,50 @@ ThresholdResult[] breached = stats.Thresholds
 // while in-flight count and heap growth say what.
 SutObserver.Observation observed = SutObserver.Current;
 
+bool heapBudgetBreached = false;
+
 if (observed.Samples > 0)
 {
     Console.WriteLine();
     Console.WriteLine($"observed on the server ({observed.Samples} samples, peak values):");
     Console.WriteLine($"  dependency calls in flight   {observed.PeakDependencyInFlight,10:N0}");
-    Console.WriteLine($"  managed heap                 {observed.PeakHeapMb,10:N1} MB peak");
+    Console.WriteLine($"  managed heap at start        {observed.FirstHeapMb,10:N1} MB");
+    Console.WriteLine($"  managed heap peak            {observed.PeakHeapMb,10:N1} MB");
     Console.WriteLine($"  managed heap at end          {observed.FinalHeapMb,10:N1} MB");
+    Console.WriteLine($"  heap growth                  {observed.HeapGrowthMb,10:N1} MB " +
+                      $"({observed.GrowthMbPerMinute:N1} MB/min)");
+    Console.WriteLine($"  working set at start         {observed.FirstWorkingSetMb,10:N1} MB");
+    Console.WriteLine($"  working set peak             {observed.PeakWorkingSetMb,10:N1} MB");
+    Console.WriteLine($"  working set growth           {observed.WorkingSetGrowthMb,10:N1} MB " +
+                      $"({observed.WorkingSetGrowthMbPerMinute:N1} MB/min)");
     Console.WriteLine($"  cached report entries        {observed.PeakCachedReportEntries,10:N0}");
     Console.WriteLine($"  threads                      {observed.PeakThreadCount,10:N0}");
     Console.WriteLine($"  gen2 collections             {observed.Gen2Collections,10:N0}");
+
+    if (profile.HeapGrowthBudgetMb is double budget)
+    {
+        heapBudgetBreached = observed.HeapGrowthMb > budget;
+
+        Console.WriteLine(
+            $"  heap growth budget           {budget,10:N1} MB " +
+            $"-> {(heapBudgetBreached ? "BREACHED" : "within budget")}");
+
+        // Extrapolation is the point of a soak. A growth rate only becomes a
+        // finding when it is expressed as time until the limit is reached.
+        //
+        // Against resident memory rather than the managed heap, because that is
+        // what the container limit applies to. Extrapolating the heap instead
+        // flatters the result: most of the limit is already spent on the runtime
+        // before anything leaks.
+        const double ContainerLimitMb = 1024;
+
+        if (observed.MinutesToLimit(ContainerLimitMb) is double minutes)
+        {
+            Console.WriteLine(
+                $"  at this rate the {ContainerLimitMb / 1024:N0} GB container limit is reached in " +
+                $"~{minutes:N0} minutes");
+        }
+    }
 }
 
 // Always report how many thresholds were evaluated, including on a clean run.
@@ -140,6 +175,16 @@ if (breached.Length > 0)
         }
     }
 
+    Console.Error.WriteLine($"See reports/{profile.Name}.");
+    return 1;
+}
+
+if (heapBudgetBreached)
+{
+    Console.Error.WriteLine();
+    Console.Error.WriteLine(
+        $"BREACH heap growth {observed.HeapGrowthMb:N1} MB exceeds the " +
+        $"{profile.HeapGrowthBudgetMb:N1} MB budget for this profile.");
     Console.Error.WriteLine($"See reports/{profile.Name}.");
     return 1;
 }

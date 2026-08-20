@@ -29,5 +29,16 @@ public interface IProfile
     /// </summary>
     bool FailOnErrors => true;
 
+    /// <summary>
+    /// Maximum managed heap growth the run may cause, in megabytes, or null when
+    /// the shape does not care.
+    ///
+    /// Kept outside NBomber's threshold system on purpose: this is a server-side
+    /// measurement the client never sees, so no expression over ScenarioStats can
+    /// express it. A leak is invisible to latency thresholds until the heap is
+    /// large enough to affect GC pauses, which is far too late.
+    /// </summary>
+    double? HeapGrowthBudgetMb => null;
+
     ScenarioProps[] Build(HttpClient client);
 }
