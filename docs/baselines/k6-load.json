@@ -1,0 +1,398 @@
+{
+  "schemaVersion": 1,
+  "tool": "k6",
+  "toolVersion": "2.1.0",
+  "profile": "load",
+  "repetitions": 3,
+  "scale": 1,
+  "freshTargetPerRun": false,
+  "provenance": {
+    "collectedAtUtc": "2026-08-21T09:43:07.1820364\u002B00:00",
+    "gitSha": "f88475f21567d6268a846b72b89d6024476c92fb",
+    "gitDirty": false,
+    "host": {
+      "operatingSystem": "Microsoft Windows 10.0.26200",
+      "architecture": "X64",
+      "processorCount": 22,
+      "dotnetVersion": "10.0.11"
+    },
+    "target": {
+      "imageId": "sha256:0d9053f07614bbf59b6a3c48cc9342d241964223d0d94ba6ac65daa2796828e5",
+      "cpuLimit": "2000000000",
+      "memoryLimitBytes": "1073741824",
+      "pathologies": "{\u0022maxPoolSize\u0022:20,\u0022pooledHoldDuration\u0022:\u002200:00:00.0500000\u0022,\u0022nPlusOneRowCount\u0022:25,\u0022unboundedCache\u0022:true,\u0022slowDependencyLatency\u0022:\u002200:00:02\u0022,\u0022searchRateLimitPerSecond\u0022:50,\u0022exportAllocationBytes\u0022:262144,\u0022coldStartPenalty\u0022:\u002200:00:01\u0022,\u0022tokenIssuanceCost\u0022:\u002200:00:00.0250000\u0022,\u0022tokenLifetime\u0022:\u002200:01:00\u0022}"
+    }
+  },
+  "outcomes": [
+    "Passed",
+    "Passed",
+    "Passed"
+  ],
+  "scenarios": [
+    {
+      "name": "warmup",
+      "requestCount": {
+        "median": 927,
+        "min": 921,
+        "max": 930,
+        "spread": 0.0097
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 92.7,
+        "min": 92.1,
+        "max": 93,
+        "spread": 0.0097
+      },
+      "meanMs": {
+        "median": 21.41,
+        "min": 21.32,
+        "max": 21.55,
+        "spread": 0.0107
+      },
+      "p50Ms": {
+        "median": 8.32,
+        "min": 8.32,
+        "max": 8.56,
+        "spread": 0.0288
+      },
+      "p95Ms": {
+        "median": 53.4,
+        "min": 53.19,
+        "max": 53.48,
+        "spread": 0.0054
+      },
+      "p99Ms": {
+        "median": 54.3,
+        "min": 54.15,
+        "max": 54.36,
+        "spread": 0.0039
+      },
+      "minMs": {
+        "median": 0.52,
+        "min": 0.51,
+        "max": 1.06,
+        "spread": 1.0577
+      },
+      "steps": []
+    },
+    {
+      "name": "baseline",
+      "requestCount": {
+        "median": 46547,
+        "min": 39978,
+        "max": 47248,
+        "spread": 0.1562
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 775.78,
+        "min": 666.3,
+        "max": 787.47,
+        "spread": 0.1562
+      },
+      "meanMs": {
+        "median": 2.4,
+        "min": 2.36,
+        "max": 2.77,
+        "spread": 0.1708
+      },
+      "p50Ms": {
+        "median": 1.73,
+        "min": 1.71,
+        "max": 2.09,
+        "spread": 0.2197
+      },
+      "p95Ms": {
+        "median": 3.28,
+        "min": 3.27,
+        "max": 4.16,
+        "spread": 0.2713
+      },
+      "p99Ms": {
+        "median": 24.16,
+        "min": 24.12,
+        "max": 24.86,
+        "spread": 0.0306
+      },
+      "minMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "steps": []
+    },
+    {
+      "name": "nPlusOne",
+      "requestCount": {
+        "median": 13670,
+        "min": 11976,
+        "max": 13954,
+        "spread": 0.1447
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 227.83,
+        "min": 199.6,
+        "max": 232.57,
+        "spread": 0.1447
+      },
+      "meanMs": {
+        "median": 12.98,
+        "min": 12.71,
+        "max": 14.79,
+        "spread": 0.1602
+      },
+      "p50Ms": {
+        "median": 13.62,
+        "min": 12.69,
+        "max": 13.74,
+        "spread": 0.0771
+      },
+      "p95Ms": {
+        "median": 43.5,
+        "min": 42.86,
+        "max": 46.47,
+        "spread": 0.083
+      },
+      "p99Ms": {
+        "median": 49.53,
+        "min": 48.48,
+        "max": 53.27,
+        "spread": 0.0967
+      },
+      "minMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "steps": [
+        {
+          "name": "one_query",
+          "requestCount": {
+            "median": 6835,
+            "min": 5988,
+            "max": 6977,
+            "spread": 0.1447
+          },
+          "failCount": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "spread": 0
+          },
+          "requestsPerSecond": {
+            "median": 113.92,
+            "min": 99.8,
+            "max": 116.28,
+            "spread": 0.1447
+          },
+          "meanMs": {
+            "median": 2.08,
+            "min": 1.97,
+            "max": 2.4,
+            "spread": 0.2067
+          },
+          "p50Ms": {
+            "median": 1.73,
+            "min": 1.7,
+            "max": 2.09,
+            "spread": 0.2254
+          },
+          "p95Ms": {
+            "median": 3.01,
+            "min": 2.99,
+            "max": 3.67,
+            "spread": 0.2259
+          },
+          "p99Ms": {
+            "median": 6.25,
+            "min": 4.58,
+            "max": 9.23,
+            "spread": 0.744
+          },
+          "minMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "spread": 0
+          },
+          "steps": []
+        },
+        {
+          "name": "n_queries",
+          "requestCount": {
+            "median": 6835,
+            "min": 5988,
+            "max": 6977,
+            "spread": 0.1447
+          },
+          "failCount": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "spread": 0
+          },
+          "requestsPerSecond": {
+            "median": 113.92,
+            "min": 99.8,
+            "max": 116.28,
+            "spread": 0.1447
+          },
+          "meanMs": {
+            "median": 23.88,
+            "min": 23.44,
+            "max": 27.19,
+            "spread": 0.157
+          },
+          "p50Ms": {
+            "median": 17.58,
+            "min": 17.32,
+            "max": 21.48,
+            "spread": 0.2366
+          },
+          "p95Ms": {
+            "median": 45.77,
+            "min": 45.06,
+            "max": 49.32,
+            "spread": 0.0931
+          },
+          "p99Ms": {
+            "median": 57.49,
+            "min": 55.6,
+            "max": 61.05,
+            "spread": 0.0948
+          },
+          "minMs": {
+            "median": 11.69,
+            "min": 10.13,
+            "max": 11.8,
+            "spread": 0.1429
+          },
+          "steps": []
+        }
+      ]
+    },
+    {
+      "name": "pooledQueue",
+      "requestCount": {
+        "median": 6754,
+        "min": 6691,
+        "max": 6767,
+        "spread": 0.0113
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 112.57,
+        "min": 111.52,
+        "max": 112.78,
+        "spread": 0.0112
+      },
+      "meanMs": {
+        "median": 53.11,
+        "min": 53,
+        "max": 53.53,
+        "spread": 0.01
+      },
+      "p50Ms": {
+        "median": 51.76,
+        "min": 51.71,
+        "max": 52.04,
+        "spread": 0.0064
+      },
+      "p95Ms": {
+        "median": 69.17,
+        "min": 65.76,
+        "max": 69.22,
+        "spread": 0.05
+      },
+      "p99Ms": {
+        "median": 76.63,
+        "min": 76.2,
+        "max": 76.73,
+        "spread": 0.0069
+      },
+      "minMs": {
+        "median": 49.45,
+        "min": 49.38,
+        "max": 49.78,
+        "spread": 0.0081
+      },
+      "steps": []
+    },
+    {
+      "name": "lockContention",
+      "requestCount": {
+        "median": 7491,
+        "min": 7482,
+        "max": 7493,
+        "spread": 0.0015
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 124.85,
+        "min": 124.7,
+        "max": 124.88,
+        "spread": 0.0014
+      },
+      "meanMs": {
+        "median": 15.79,
+        "min": 15.73,
+        "max": 15.81,
+        "spread": 0.0051
+      },
+      "p50Ms": {
+        "median": 15.86,
+        "min": 15.78,
+        "max": 15.86,
+        "spread": 0.005
+      },
+      "p95Ms": {
+        "median": 16.98,
+        "min": 16.92,
+        "max": 17.07,
+        "spread": 0.0088
+      },
+      "p99Ms": {
+        "median": 18.32,
+        "min": 18.02,
+        "max": 18.69,
+        "spread": 0.0366
+      },
+      "minMs": {
+        "median": 9.64,
+        "min": 6.66,
+        "max": 10.54,
+        "spread": 0.4025
+      },
+      "steps": []
+    }
+  ]
+}

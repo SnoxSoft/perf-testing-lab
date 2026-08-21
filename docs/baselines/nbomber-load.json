@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "tool": "nbomber",
+  "toolVersion": "6.6.0",
+  "profile": "load",
+  "repetitions": 3,
+  "scale": 1,
+  "freshTargetPerRun": false,
+  "provenance": {
+    "collectedAtUtc": "2026-08-21T09:39:19.5241850\u002B00:00",
+    "gitSha": "f88475f21567d6268a846b72b89d6024476c92fb",
+    "gitDirty": false,
+    "host": {
+      "operatingSystem": "Microsoft Windows 10.0.26200",
+      "architecture": "X64",
+      "processorCount": 22,
+      "dotnetVersion": "10.0.11"
+    },
+    "target": {
+      "imageId": "sha256:0d9053f07614bbf59b6a3c48cc9342d241964223d0d94ba6ac65daa2796828e5",
+      "cpuLimit": "2000000000",
+      "memoryLimitBytes": "1073741824",
+      "pathologies": "{\u0022maxPoolSize\u0022:20,\u0022pooledHoldDuration\u0022:\u002200:00:00.0500000\u0022,\u0022nPlusOneRowCount\u0022:25,\u0022unboundedCache\u0022:true,\u0022slowDependencyLatency\u0022:\u002200:00:02\u0022,\u0022searchRateLimitPerSecond\u0022:50,\u0022exportAllocationBytes\u0022:262144,\u0022coldStartPenalty\u0022:\u002200:00:01\u0022,\u0022tokenIssuanceCost\u0022:\u002200:00:00.0250000\u0022,\u0022tokenLifetime\u0022:\u002200:01:00\u0022}"
+    }
+  },
+  "outcomes": [
+    "Passed",
+    "Passed",
+    "Passed"
+  ],
+  "scenarios": [
+    {
+      "name": "baseline",
+      "requestCount": {
+        "median": 51914,
+        "min": 51791,
+        "max": 53564,
+        "spread": 0.0342
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 865.23,
+        "min": 863.18,
+        "max": 892.73,
+        "spread": 0.0342
+      },
+      "meanMs": {
+        "median": 2.29,
+        "min": 2.22,
+        "max": 2.3,
+        "spread": 0.0349
+      },
+      "p50Ms": {
+        "median": 1.62,
+        "min": 1.58,
+        "max": 1.64,
+        "spread": 0.037
+      },
+      "p95Ms": {
+        "median": 2.63,
+        "min": 2.6,
+        "max": 2.67,
+        "spread": 0.0266
+      },
+      "p99Ms": {
+        "median": 27.78,
+        "min": 27.31,
+        "max": 28.27,
+        "spread": 0.0346
+      },
+      "minMs": {
+        "median": 0.81,
+        "min": 0.79,
+        "max": 0.86,
+        "spread": 0.0864
+      },
+      "steps": []
+    },
+    {
+      "name": "n_plus_one_comparison",
+      "requestCount": {
+        "median": 14094,
+        "min": 13848,
+        "max": 14468,
+        "spread": 0.044
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 234.9,
+        "min": 230.8,
+        "max": 241.13,
+        "spread": 0.044
+      },
+      "meanMs": {
+        "median": 12.68,
+        "min": 12.35,
+        "max": 12.91,
+        "spread": 0.0442
+      },
+      "p50Ms": {
+        "median": 12.71,
+        "min": 12.52,
+        "max": 13.02,
+        "spread": 0.0393
+      },
+      "p95Ms": {
+        "median": 45.5,
+        "min": 44.67,
+        "max": 45.89,
+        "spread": 0.0268
+      },
+      "p99Ms": {
+        "median": 50.72,
+        "min": 49.98,
+        "max": 50.75,
+        "spread": 0.0152
+      },
+      "minMs": {
+        "median": 0.88,
+        "min": 0.83,
+        "max": 0.88,
+        "spread": 0.0568
+      },
+      "steps": [
+        {
+          "name": "one_query",
+          "requestCount": {
+            "median": 7047,
+            "min": 6924,
+            "max": 7234,
+            "spread": 0.044
+          },
+          "failCount": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "spread": 0
+          },
+          "requestsPerSecond": {
+            "median": 117.45,
+            "min": 115.4,
+            "max": 120.57,
+            "spread": 0.044
+          },
+          "meanMs": {
+            "median": 1.93,
+            "min": 1.91,
+            "max": 1.98,
+            "spread": 0.0363
+          },
+          "p50Ms": {
+            "median": 1.62,
+            "min": 1.6,
+            "max": 1.65,
+            "spread": 0.0309
+          },
+          "p95Ms": {
+            "median": 2.54,
+            "min": 2.47,
+            "max": 2.56,
+            "spread": 0.0354
+          },
+          "p99Ms": {
+            "median": 5.66,
+            "min": 4.14,
+            "max": 6.16,
+            "spread": 0.3569
+          },
+          "minMs": {
+            "median": 0.88,
+            "min": 0.83,
+            "max": 0.88,
+            "spread": 0.0568
+          },
+          "steps": []
+        },
+        {
+          "name": "n_queries",
+          "requestCount": {
+            "median": 7047,
+            "min": 6924,
+            "max": 7234,
+            "spread": 0.044
+          },
+          "failCount": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "spread": 0
+          },
+          "requestsPerSecond": {
+            "median": 117.45,
+            "min": 115.4,
+            "max": 120.57,
+            "spread": 0.044
+          },
+          "meanMs": {
+            "median": 23.38,
+            "min": 22.78,
+            "max": 23.91,
+            "spread": 0.0483
+          },
+          "p50Ms": {
+            "median": 16.83,
+            "min": 16.3,
+            "max": 17.14,
+            "spread": 0.0499
+          },
+          "p95Ms": {
+            "median": 47.84,
+            "min": 46.98,
+            "max": 47.84,
+            "spread": 0.018
+          },
+          "p99Ms": {
+            "median": 57.38,
+            "min": 56.58,
+            "max": 59.1,
+            "spread": 0.0439
+          },
+          "minMs": {
+            "median": 10.87,
+            "min": 10.46,
+            "max": 11.31,
+            "spread": 0.0782
+          },
+          "steps": []
+        }
+      ]
+    },
+    {
+      "name": "pooled_queue",
+      "requestCount": {
+        "median": 6772,
+        "min": 6758,
+        "max": 6775,
+        "spread": 0.0025
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 112.87,
+        "min": 112.63,
+        "max": 112.92,
+        "spread": 0.0026
+      },
+      "meanMs": {
+        "median": 52.84,
+        "min": 52.84,
+        "max": 52.97,
+        "spread": 0.0025
+      },
+      "p50Ms": {
+        "median": 51.65,
+        "min": 51.58,
+        "max": 51.68,
+        "spread": 0.0019
+      },
+      "p95Ms": {
+        "median": 63.46,
+        "min": 59.52,
+        "max": 63.97,
+        "spread": 0.0701
+      },
+      "p99Ms": {
+        "median": 79.1,
+        "min": 78.14,
+        "max": 79.17,
+        "spread": 0.013
+      },
+      "minMs": {
+        "median": 50.88,
+        "min": 50.81,
+        "max": 50.91,
+        "spread": 0.002
+      },
+      "steps": []
+    },
+    {
+      "name": "lock_contention",
+      "requestCount": {
+        "median": 7472,
+        "min": 7470,
+        "max": 7483,
+        "spread": 0.0017
+      },
+      "failCount": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "requestsPerSecond": {
+        "median": 124.53,
+        "min": 124.5,
+        "max": 124.72,
+        "spread": 0.0018
+      },
+      "meanMs": {
+        "median": 15.97,
+        "min": 15.95,
+        "max": 15.97,
+        "spread": 0.0013
+      },
+      "p50Ms": {
+        "median": 16.09,
+        "min": 16.09,
+        "max": 16.1,
+        "spread": 0.0006
+      },
+      "p95Ms": {
+        "median": 16.83,
+        "min": 16.72,
+        "max": 16.85,
+        "spread": 0.0077
+      },
+      "p99Ms": {
+        "median": 17.63,
+        "min": 17.17,
+        "max": 17.9,
+        "spread": 0.0414
+      },
+      "minMs": {
+        "median": 6.77,
+        "min": 6.16,
+        "max": 6.99,
+        "spread": 0.1226
+      },
+      "steps": []
+    }
+  ]
+}
