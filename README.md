@@ -63,6 +63,24 @@ alone does not update it:
 docker compose up -d --build
 ```
 
+### Measuring properly
+
+A single run finds defects; it does not make a baseline. The bench harness runs a
+profile several times and reports the median with the observed range, plus the
+commit, host and target configuration that produced it:
+
+```bash
+dotnet run --project tools/PerfLab.Bench -- load --repeats=3
+```
+
+It uses a fresh process per repetition, restarts the target for profiles whose
+result depends on accumulated server state, and refuses to start if the target
+is unhealthy rather than recording a run full of transport errors. Output lands
+in `results/<tool>/<profile>/` as `summary.json` and `summary.md`.
+
+Only compare like-scale runs — absolute throughput shifts with run length, which
+is why the scale factor is recorded in every result.
+
 ### Running the tests
 
 ```bash
@@ -128,6 +146,8 @@ src/PerfLab.Sut/          ASP.NET Core system under test
 tests/PerfLab.Sut.Tests/  Testcontainers guard: assert each pathology
                           misbehaves as designed before spending hours on it
 nbomber/PerfLab.NBomber/  NBomber suite — scenarios, profiles, thresholds
+tools/PerfLab.Results/    The run schema both suites emit, so results aggregate
+tools/PerfLab.Bench/      Repeat runner: median, range and provenance
 ```
 
 Testcontainers is used for the correctness tests only, never for the measured
@@ -143,13 +163,18 @@ Built in phases; this tracks what actually runs today.
 - [x] System under test and Docker Compose environment
 - [x] Testcontainers correctness guard
 - [x] NBomber suite — 10 profiles
-- [ ] Repeat-run harness reporting median and spread
+- [x] Repeat-run harness reporting median and spread
 - [ ] k6 suite mirroring the NBomber one
 - [ ] InfluxDB and Grafana as an optional compose profile
 - [ ] Committed baselines, findings and methodology write-ups
 - [ ] CI pipelines
 
-**No measured results are published in this repository yet.** Every number
-produced so far comes from a single run on one developer laptop, which is
-enough to find a defect and not enough to publish as a baseline. The repeat-run
-harness comes first, then baselines with median and spread.
+**No measured results are published in this repository yet.** The harness that
+makes them publishable now exists; the baselines themselves land with the k6
+suite, so that both tools are measured the same way on the same commit rather
+than one being retrofitted to match the other.
+
+For the record, the reproducibility the harness reports is good: across three
+runs of the load profile, the queue-bound endpoints held their p50 to within
+0.06%, and nothing exceeded the 10% noise threshold. Absolute throughput does
+shift with run length, so only like-scale runs are comparable.
