@@ -29,7 +29,8 @@ adopting any of it at work.
 
 **k6 is AGPL-3.0** and free to self-host, commercially included.
 
-That difference is a real input to a tooling decision, not a footnote.
+That difference is a real input to a tooling decision, so it is treated as one in
+[docs/tool-comparison.md](docs/tool-comparison.md) rather than left as a footnote.
 
 ## Quick start
 
@@ -117,11 +118,15 @@ entirely meaningless graph.
 > between xunit.v3 4.0.0's Microsoft.Testing.Platform adapter and the .NET 10
 > SDK's new `dotnet test` mode. Use the command above.
 
-See **[docs/findings.md](docs/findings.md)** for what the runs actually showed —
-fifteen findings with the numbers behind them, and what each one means for a
-service that is not this one, and
-**[docs/methodology.md](docs/methodology.md)** for the rules those findings
-produced.
+Three documents carry the substance:
+
+- **[docs/findings.md](docs/findings.md)** — fifteen findings with the numbers
+  behind them, and what each means for a service that is not this one.
+- **[docs/methodology.md](docs/methodology.md)** — the rules those findings
+  produced, and how to measure so that a result is worth believing.
+- **[docs/tool-comparison.md](docs/tool-comparison.md)** — NBomber against k6 on
+  everything actually encountered, licensing included.
+
 
 ## The system under test
 
@@ -174,7 +179,7 @@ nbomber/PerfLab.NBomber/  NBomber suite — scenarios, profiles, thresholds
 k6/                       k6 suite — deliberately mirrors nbomber/ file for file
 tools/PerfLab.Results/    The run schema both suites emit, so results aggregate
 tools/PerfLab.Bench/      Repeat runner: median, range and provenance
-docs/                     Findings and methodology
+docs/                     Findings, methodology and the tool comparison
 ```
 
 Testcontainers is used for the correctness tests only, never for the measured
