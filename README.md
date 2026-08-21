@@ -102,7 +102,9 @@ entirely meaningless graph.
 
 See **[docs/findings.md](docs/findings.md)** for what the runs actually showed —
 fifteen findings with the numbers behind them, and what each one means for a
-service that is not this one.
+service that is not this one, and
+**[docs/methodology.md](docs/methodology.md)** for the rules those findings
+produced.
 
 ## The system under test
 
@@ -155,6 +157,7 @@ nbomber/PerfLab.NBomber/  NBomber suite — scenarios, profiles, thresholds
 k6/                       k6 suite — deliberately mirrors nbomber/ file for file
 tools/PerfLab.Results/    The run schema both suites emit, so results aggregate
 tools/PerfLab.Bench/      Repeat runner: median, range and provenance
+docs/                     Findings and methodology
 ```
 
 Testcontainers is used for the correctness tests only, never for the measured
