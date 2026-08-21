@@ -100,6 +100,10 @@ entirely meaningless graph.
 > between xunit.v3 4.0.0's Microsoft.Testing.Platform adapter and the .NET 10
 > SDK's new `dotnet test` mode. Use the command above.
 
+See **[docs/findings.md](docs/findings.md)** for what the runs actually showed —
+fifteen findings with the numbers behind them, and what each one means for a
+service that is not this one.
+
 ## The system under test
 
 Each route is a deliberate failure mode, individually configurable so a run
