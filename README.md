@@ -1,64 +1,125 @@
 # perf-testing-lab
 
-Load, stress, spike and endurance testing of the same .NET service, written
-twice: once in **NBomber** (C#) and once in **k6** (JavaScript).
+Load, stress, spike and endurance testing of a .NET service, against a target
+built to misbehave on purpose.
 
-Most load-testing examples point at a public demo API, which makes them
-useless for their stated purpose — a healthy remote service under modest load
-produces a flat line, and a flat line teaches nothing. This repository ships
-its own system under test: an ASP.NET Core API backed by a real PostgreSQL
-instance, with specific performance pathologies built in on purpose. Every
-test type here exists to expose one of them.
+Most load-testing examples point at a public demo API, which makes them useless
+for their stated purpose: a healthy remote service under modest load produces a
+flat line, and a flat line teaches nothing. You cannot find a knee, characterise
+a failure mode, or run a soak against a target that never breaks.
 
-Because both suites drive the identical target under identical conditions,
-the two sets of results are directly comparable — which is the point.
+So this repository ships its own target — an ASP.NET Core API backed by real
+PostgreSQL, with specific performance pathologies built in, running under a
+pinned CPU and memory limit. Every load shape exists to expose one of them.
+Because the target is controlled, a prediction can be made before a run and
+checked against it afterwards, which is the only way to know the method works.
+
+The eventual aim is the same suite written twice, in NBomber and in k6, so the
+two are directly comparable. The NBomber half is done; see **Status** below.
 
 ## Licensing, up front
 
 **NBomber is proprietary and free for personal use only.** Organisational use
-requires a paid Business or Enterprise licence; versions 4 and earlier were
-Apache-2.0, version 5 onward is closed-source. The NBomber suite here is a
-personal-use project. Read
-[the NBomber licence](https://nbomber.com/docs/getting-started/license/)
-before adopting any of it at work.
+requires a paid Business or Enterprise licence, and the runner prints that
+warning after every run. Versions 4 and earlier were Apache-2.0; version 5
+onward is closed-source. This repository is a personal-use project. Read
+[the NBomber licence](https://nbomber.com/docs/getting-started/license/) before
+adopting any of it at work.
 
 **k6 is AGPL-3.0** and free to self-host, commercially included.
 
-That difference is a real input to a tooling decision, so it is treated as
-one in [docs/tool-comparison.md](docs/tool-comparison.md) rather than left as
-a footnote.
+That difference is a real input to a tooling decision, not a footnote.
+
+## Quick start
+
+Requires .NET 10 SDK and Docker.
+
+```bash
+docker compose up -d --build
+```
+
+Wait for both containers to report healthy, then run a load shape:
+
+```bash
+cd nbomber/PerfLab.NBomber
+dotnet run -- smoke
+```
+
+Reports are written to `nbomber/PerfLab.NBomber/reports/<profile>/` as HTML,
+Markdown, CSV and text. Run with no valid profile name to list them all.
+
+Useful switches:
+
+```bash
+PERFLAB_SCALE=0.5 dotnet run -- load        # halve every duration, same shape
+dotnet run -- load --scenario=pooled_queue  # isolate one scenario
+PERFLAB_SUT_URL=http://127.0.0.1:8080 dotnet run -- load
+```
+
+After changing anything under `src/`, rebuild the container — `dotnet build`
+alone does not update it:
+
+```bash
+docker compose up -d --build
+```
+
+### Running the tests
+
+```bash
+dotnet run --project tests/PerfLab.Sut.Tests
+```
+
+Seventeen Testcontainers-backed tests assert that every pathology still
+misbehaves as designed. Run them before a long soak: an endurance run against
+an endpoint whose cache quietly started evicting produces a clean, flat and
+entirely meaningless graph.
+
+> **Known issue:** `dotnet test` reports "Zero tests ran" with exit code 5,
+> while the identical binary launched as above discovers and passes all 17.
+> Configuration has been ruled out; this appears to be an incompatibility
+> between xunit.v3 4.0.0's Microsoft.Testing.Platform adapter and the .NET 10
+> SDK's new `dotnet test` mode. Use the command above.
 
 ## The system under test
 
-A minimal ASP.NET Core API where each route is a deliberate failure mode,
-individually toggleable so a test can isolate one variable:
+Each route is a deliberate failure mode, individually configurable so a run
+changes one variable at a time.
 
-| Pathology | Mechanism | Test type it exposes |
+| Pathology | Mechanism | Exposed by |
 | --- | --- | --- |
-| Connection pool exhaustion | Npgsql pool capped well below offered concurrency | Capacity |
-| N+1 query | One query per row instead of a join | Load |
-| Unbounded cache | Per-request key retained forever | **Endurance** |
-| Lock contention | Single global lock on a hot path | Stress |
-| Slow dependency, no timeout | Downstream call with no cancellation | Breakpoint |
-| Rate limiting | Returns 429 above a threshold | Spike |
-| Allocation pressure | Large short-lived allocations | Endurance |
-| Cold start | No warm-up on first request | All |
+| Connection pool exhaustion | Npgsql pool of 20, held 50ms per request | `capacity-pool` |
+| N+1 query | 26 queries for a result set one join could return | `load` |
+| Unbounded cache | ~8KB retained per distinct key, forever | `endurance` |
+| Lock contention | Serialised 5ms critical section | `capacity-lock` |
+| Untimed dependency | 2s downstream call, no cancellation | `stress` (control) |
+| Resource-holding dependency | Same 2s call, holds a pooled connection | `stress` (collapses) |
+| Rate limiting | Genuine 429s above 50 req/s | `spike` |
+| Allocation pressure | 256KB per request, above the LOH threshold | `endurance` |
+| Cold start | 1s penalty on the first request only | all (warm-up) |
+| Expensive authentication | 25ms issuance, cheap validation | `correlation` |
 
-The container runs with pinned `cpus` and `mem_limit`. Without a fixed
-resource ceiling the measured breaking point moves with whatever else the host
-is doing, and no two runs can be compared.
+The container runs with pinned `cpus` and `mem_limit`. Without a fixed ceiling
+the measured breaking point drifts with whatever else the host is doing, and no
+two runs are comparable — which makes regression detection, the main reason to
+put performance tests in CI, impossible.
 
-## Test types
+## Load shapes
 
-| Type | Shape of load | Question it answers |
+| Profile | Shape | Question it answers |
 | --- | --- | --- |
-| Smoke | 1 user, 1 minute | Is the script itself correct? |
-| Load | Steady at expected peak | Does it hold at the load we expect? |
-| Capacity | Stepped ramp | Where is the knee? |
-| Stress | Past the knee until failure | *How* does it fail? |
-| Spike | 0 → peak → 0, instantly | Does it recover? |
-| Endurance | Moderate load, hours | What degrades only with time? |
-| Breakpoint | Ramp until SLOs breach | What is the hard ceiling? |
+| `smoke` | 1 user, fixed iterations | Does the test work? (Not the system.) |
+| `load` | `KeepConstant`, closed model | At expected peak, do we meet our SLOs? |
+| `capacity-pool` | Stepped `Inject` ladder | Where is the knee for a 20-server queue? |
+| `capacity-lock` | Stepped `Inject` ladder | Where is the knee for a serialised one? |
+| `ceiling` | Ladder on a trivial endpoint | What can the harness itself measure? |
+| `stress` | Two arms past capacity | How does it fail? |
+| `spike` | before / burst / after | Does it recover, and how fast? |
+| `endurance` | Modest load, windowed | What degrades only with time? |
+| `correlation` | Token per iteration vs per user | What does bad correlation cost? |
+| `slo-breach` | Deliberately over capacity | Does the gate actually fire? |
+
+`slo-breach` is expected to fail, and is kept precisely for that reason: a
+threshold that never fires is indistinguishable from one that cannot fire.
 
 ## Layout
 
@@ -66,29 +127,29 @@ is doing, and no two runs can be compared.
 src/PerfLab.Sut/          ASP.NET Core system under test
 tests/PerfLab.Sut.Tests/  Testcontainers guard: assert each pathology
                           misbehaves as designed before spending hours on it
-nbomber/                  NBomber suite (C#) — scenarios, profiles, thresholds
-k6/                       k6 suite (JavaScript) — mirrors nbomber/ deliberately
-results/baselines/        Committed reference runs
-docs/                     Methodology and tool comparison
+nbomber/PerfLab.NBomber/  NBomber suite — scenarios, profiles, thresholds
 ```
 
-Testcontainers is used for the correctness tests and CI smoke tier only —
-never for the measured runs. Perf measurement needs a warmed, resource-pinned,
-long-lived target, and a container whose lifecycle is owned by the test
-process is the opposite of that. The reasoning is in
-[docs/methodology.md](docs/methodology.md).
+Testcontainers is used for the correctness tests only, never for the measured
+runs. Asserting behaviour is happy with a cold, randomly ported, freshly started
+database; asserting timing needs a warmed, resource-pinned, long-lived target,
+which is what the Compose environment provides.
 
 ## Status
 
-Built in phases; this section tracks what actually runs today.
+Built in phases; this tracks what actually runs today.
 
 - [x] Repository scaffolding and build configuration
 - [x] System under test and Docker Compose environment
 - [x] Testcontainers correctness guard
-- [x] NBomber suite
-- [ ] k6 suite
-- [ ] InfluxDB + Grafana, committed baselines
-- [ ] CI pipelines and methodology docs
+- [x] NBomber suite — 10 profiles
+- [ ] Repeat-run harness reporting median and spread
+- [ ] k6 suite mirroring the NBomber one
+- [ ] InfluxDB and Grafana as an optional compose profile
+- [ ] Committed baselines, findings and methodology write-ups
+- [ ] CI pipelines
 
-Quick-start instructions and measured results land with the phases that make
-them true. No numbers are published here until they come from a real run.
+**No measured results are published in this repository yet.** Every number
+produced so far comes from a single run on one developer laptop, which is
+enough to find a defect and not enough to publish as a baseline. The repeat-run
+harness comes first, then baselines with median and spread.
