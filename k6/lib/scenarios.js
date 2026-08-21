@@ -1,3 +1,4 @@
+import { sleep } from 'k6';
 import { get, post } from './http.js';
 import { perVirtualUser, uniqueKey } from './data.js';
 
@@ -84,6 +85,9 @@ export function rateLimitedSearch() {
   get('/api/search?q=perflab', { okStatuses: [200, 429] });
 }
 
+/** Pacing shared by both correlation arms, matching the NBomber suite. */
+const THINK_TIME_SECONDS = 0.02;
+
 /** Authenticates on every iteration: the wrong way, measured. */
 export function authNaive() {
   const user = perVirtualUser();
@@ -94,6 +98,13 @@ export function authNaive() {
   }
 
   ordersFor(issued.json('token'), user);
+
+  // Think time, outside the measured steps. Real users pause between actions,
+  // and a scenario with no pacing measures a load pattern nobody has. The
+  // NBomber arms use the same 20ms, so the two are comparable — without it the
+  // cached arm runs flat out and the throughput ratio between the arms reflects
+  // the absence of pacing rather than the cost of authenticating.
+  sleep(THINK_TIME_SECONDS);
 }
 
 /**
@@ -134,6 +145,7 @@ export function authCached() {
   }
 
   ordersFor(cachedToken.token, user);
+  sleep(THINK_TIME_SECONDS);
 }
 
 function ordersFor(token, expectedUser) {
