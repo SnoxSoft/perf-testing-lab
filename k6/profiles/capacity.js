@@ -136,8 +136,12 @@ export const ceiling = ladder({
   name: 'ceiling',
   question: 'Where is the knee for echo? NBomber reached ~10,000 rps at 6.65ms',
   exec: 'generatorCeiling',
-  rates: [2000, 4000, 6000, 8000, 10000, 12000, 14000],
-  warmUpRate: 1000,
+  // Stops at 8,000. Measured collapse begins above that on this hardware —
+  // 10,000 offered delivered 1,457 with 13,041 failures — so higher rungs
+  // measure the harness, not the service, and they saturate the host badly
+  // enough to make the machine unusable while they run.
+  rates: [1000, 2000, 3000, 4000, 6000, 8000],
+  warmUpRate: 500,
 
   // A trivial endpoint, so the VU requirement is small even at high rates.
   maxLatencySeconds: 0.5,
