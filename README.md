@@ -83,6 +83,23 @@ in `results/<tool>/<profile>/` as `summary.json` and `summary.md`.
 Only compare like-scale runs — absolute throughput shifts with run length, which
 is why the scale factor is recorded in every result.
 
+### Watching a run live (optional)
+
+```bash
+docker compose --profile observability up -d
+k6 run --out experimental-prometheus-rw --env PROFILE=endurance k6/main.js
+```
+
+Grafana on http://localhost:3000, Prometheus on http://localhost:9090. Off by
+default: it adds two containers competing with the target and the generator, and
+the measured runs do not need it. Its value is watching the long shapes unfold —
+the moment a spike's backlog starts draining, or a soak's heap turning over.
+
+This is **k6 only**. NBomber's Prometheus sink does not work with NBomber 6.6.0
+(`TypeLoadException`), and its InfluxDB sink would mean a second time series
+database for one tool. See [observability/prometheus.yml](observability/prometheus.yml)
+for the detail.
+
 ### Running the tests
 
 ```bash
@@ -175,8 +192,8 @@ Built in phases; this tracks what actually runs today.
 - [x] NBomber suite — 10 profiles
 - [x] Repeat-run harness reporting median and spread
 - [x] k6 suite mirroring the NBomber one — 9 profiles, same schema, same harness
-- [ ] InfluxDB and Grafana as an optional compose profile
-- [ ] Committed baselines, findings and methodology write-ups
+- [x] Prometheus and Grafana as an optional compose profile (k6 only)
+- [x] Findings, methodology and a committed baseline for the load profile
 - [ ] CI pipelines
 
 **No measured results are published in this repository yet.** The harness that

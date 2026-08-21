@@ -61,3 +61,48 @@ services:
       # Long start period: the cold-start pathology delays the first request on
       # purpose, and the healthcheck must not race it.
       start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Optional observability stack. Off by default:
+  #
+  #   docker compose --profile observability up -d
+  #
+  # Deliberately opt-in. It adds two containers competing for the same host that
+  # is running both the target and the generator, and the measured runs do not
+  # need it — the four report formats and the committed baselines already carry
+  # the results. Its value is watching a run unfold rather than reading it
+  # afterwards, which matters for the long shapes: seeing the exact moment a
+  # spike's backlog starts draining, or a soak's heap turning over.
+  # ---------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # k6 pushes rather than being scraped, and the receiver is off by default.
+      - --web.enable-remote-write-receiver
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    cpus: 1.0
+    mem_limit: 512m
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    profiles: [observability]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    cpus: 1.0
+    mem_limit: 512m
+    depends_on:
+      - prometheus

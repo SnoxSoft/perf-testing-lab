@@ -1,0 +1,39 @@
+# Prometheus for the optional observability stack.
+#
+# Receives from k6 only, by remote write. There is no scrape job, and the reason
+# is worth recording rather than leaving as an apparent omission.
+#
+# NBomber.Sinks.Prometheus 1.0.0 is the only Prometheus sink published for
+# NBomber, and it does not work with NBomber 6.6.0:
+#
+#   System.TypeLoadException: Method 'Start' in type
+#   'NBomber.Sinks.Prometheus.PrometheusSink' does not have an implementation.
+#
+# It was compiled against an older IReportingSink. It also resolves
+# OpenTelemetry.Api 1.6.0-alpha.1, which carries advisory GHSA-g94r-2vxg-569j —
+# noticed only because this repository builds with warnings as errors.
+#
+# It is also the wrong shape even when it works. The sink opens an HTTP listener
+# and waits to be scraped, but a load generator is a short-lived process, so a
+# pull-based collector captures only the samples that happen to fall inside a
+# scrape window and nothing at all from a run shorter than the interval. k6's
+# remote write pushes, which is the right direction for this.
+#
+# The version-matched alternative is NBomber.Sinks.InfluxDB 6.1.1, which would
+# mean standing up a second time series database for one tool. Not worth it:
+# NBomber already writes HTML, Markdown, CSV and text, and the committed
+# baselines carry the numbers that matter.
+#
+# So live metrics are a k6-only capability here. That is a genuine difference
+# between the tools, not a gap in this repository.
+
+global:
+  # Short, because a load test is short. Only relevant to Prometheus' own
+  # self-monitoring here, since nothing else is scraped.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

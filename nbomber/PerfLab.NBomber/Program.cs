@@ -121,6 +121,7 @@ NBomberContext context = NBomberRunner
     .WithReportFolder($"reports/{profile.Name}")
     .WithReportFormats(ReportFormat.Html, ReportFormat.Md, ReportFormat.Csv, ReportFormat.Txt);
 
+
 if (targetScenario is not null)
 {
     context = context.WithTargetScenarios(targetScenario);

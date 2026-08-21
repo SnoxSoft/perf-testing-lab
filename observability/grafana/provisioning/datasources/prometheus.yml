@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      # Matches the scrape interval, so a graph does not interpolate across gaps
+      # that are really gaps.
+      timeInterval: 2s
