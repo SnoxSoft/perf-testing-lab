@@ -15,7 +15,8 @@ Because the target is controlled, a prediction can be made before a run and
 checked against it afterwards, which is the only way to know the method works.
 
 The eventual aim is the same suite written twice, in NBomber and in k6, so the
-two are directly comparable. The NBomber half is done; see **Status** below.
+two are directly comparable. Both halves now exist and run through the same
+harness; see **Status** below.
 
 ## Licensing, up front
 
@@ -71,6 +72,7 @@ commit, host and target configuration that produced it:
 
 ```bash
 dotnet run --project tools/PerfLab.Bench -- load --repeats=3
+dotnet run --project tools/PerfLab.Bench -- load --repeats=3 --tool=k6
 ```
 
 It uses a fresh process per repetition, restarts the target for profiles whose
@@ -146,6 +148,7 @@ src/PerfLab.Sut/          ASP.NET Core system under test
 tests/PerfLab.Sut.Tests/  Testcontainers guard: assert each pathology
                           misbehaves as designed before spending hours on it
 nbomber/PerfLab.NBomber/  NBomber suite — scenarios, profiles, thresholds
+k6/                       k6 suite — deliberately mirrors nbomber/ file for file
 tools/PerfLab.Results/    The run schema both suites emit, so results aggregate
 tools/PerfLab.Bench/      Repeat runner: median, range and provenance
 ```
@@ -164,7 +167,7 @@ Built in phases; this tracks what actually runs today.
 - [x] Testcontainers correctness guard
 - [x] NBomber suite — 10 profiles
 - [x] Repeat-run harness reporting median and spread
-- [ ] k6 suite mirroring the NBomber one
+- [x] k6 suite mirroring the NBomber one — 9 profiles, same schema, same harness
 - [ ] InfluxDB and Grafana as an optional compose profile
 - [ ] Committed baselines, findings and methodology write-ups
 - [ ] CI pipelines

@@ -25,7 +25,16 @@ if (!profile) {
 // selected profile's declarations before any iteration runs.
 register(profile.declarations);
 
-export const options = profile.options;
+// In catalogue mode the profile is irrelevant: a single no-op iteration is enough
+// to reach handleSummary, which is the only place a k6 script can emit anything.
+// Without this override, asking the suite to describe itself would run a full
+// load test first.
+export const options = __ENV.PERFLAB_LIST
+  ? { scenarios: { list: { executor: 'per-vu-iterations', vus: 1, iterations: 1, exec: 'noop' } } }
+  : profile.options;
+
+/** Does nothing, so catalogue mode costs one iteration and no requests. */
+export function noop() {}
 
 /**
  * Machine-readable self-description, for the bench harness.

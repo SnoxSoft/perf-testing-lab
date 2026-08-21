@@ -31,35 +31,48 @@ if (profileName.Length == 0)
     return 2;
 }
 
-if (tool is not "nbomber")
+if (tool is not ("nbomber" or "k6"))
 {
-    // k6 lands in a later phase and will emit the same schema, at which point
-    // only this switch changes.
-    Console.Error.WriteLine($"tool '{tool}' is not supported yet; only 'nbomber' emits the run schema.");
+    Console.Error.WriteLine($"unknown tool '{tool}'. Supported: nbomber, k6.");
     return 2;
 }
 
 string suiteProject = Path.Combine("nbomber", "PerfLab.NBomber", "PerfLab.NBomber.csproj");
+string k6Script = Path.Combine("k6", "main.js");
+string suitePath = tool is "k6" ? k6Script : suiteProject;
 
-if (!File.Exists(suiteProject))
+if (!File.Exists(suitePath))
 {
-    Console.Error.WriteLine($"run this from the repository root; {suiteProject} not found.");
+    Console.Error.WriteLine($"run this from the repository root; {suitePath} not found.");
     return 2;
 }
 
-// Build once, up front. Rebuilding inside the run loop would put compilation on
-// the clock and risk a different binary between repetitions.
-Console.WriteLine("building the suite...");
+// Both suites emit the same run schema and describe themselves the same way, so
+// everything past this point is tool-agnostic except how a command line is
+// assembled. That was the point of defining the schema before writing the second
+// suite: adding k6 changed the two functions below and nothing else.
+string k6Version = tool is "k6" ? await ReadK6VersionAsync() : "";
 
-if (await RunAsync("dotnet", $"build \"{suiteProject}\" -c Debug -v q --nologo") != 0)
+
+// The NBomber suite is compiled once up front. Rebuilding inside the run loop
+// would put compilation on the clock and risk a different binary between
+// repetitions. k6 needs no build step.
+if (tool is "nbomber")
 {
-    Console.Error.WriteLine("build failed.");
-    return 1;
+    Console.WriteLine("building the suite...");
+
+    if (await RunAsync("dotnet", $"build \"{suiteProject}\" -c Debug -v q --nologo") != 0)
+    {
+        Console.Error.WriteLine("build failed.");
+        return 1;
+    }
 }
 
 // Ask the suite what it knows about the profile rather than keeping a second
 // copy of that knowledge here.
-ProfileCatalog catalog = await ReadCatalogAsync(suiteProject);
+ProfileCatalog catalog = tool is "k6"
+    ? await ReadCatalogAsync("k6", $"run --env PERFLAB_LIST=1 \"{k6Script}\"", k6Version)
+    : await ReadCatalogAsync("dotnet", $"run --project \"{suiteProject}\" --no-build -- --list", null);
 
 ProfileInfo? profile = catalog.Profiles
     .FirstOrDefault(p => string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase));
@@ -126,11 +139,23 @@ for (int index = 1; index <= repeats; index++)
 
     Console.WriteLine($"[{index}/{repeats}] running...");
 
-    int exitCode = await RunAsync(
-        "dotnet",
-        $"run --project \"{suiteProject}\" --no-build -- {profile.Name} " +
-        $"--results=\"{Path.GetFullPath(runPath)}\" --run-index={index}",
-        ("PERFLAB_SCALE", scale));
+    // The only tool-specific part of the loop: how a command line is assembled.
+    // Everything either suite reports comes back through the same schema.
+    int exitCode = tool is "k6"
+        ? await RunAsync(
+            "k6",
+            $"run --env PROFILE={profile.Name} \"{k6Script}\"",
+            ("PERFLAB_SCALE", scale),
+            ("PERFLAB_RESULTS", Path.GetFullPath(runPath)),
+            ("PERFLAB_RUN_INDEX", index.ToString()),
+
+            // k6 does not expose its own version to a script, so it is passed in.
+            ("K6_VERSION", k6Version))
+        : await RunAsync(
+            "dotnet",
+            $"run --project \"{suiteProject}\" --no-build -- {profile.Name} " +
+            $"--results=\"{Path.GetFullPath(runPath)}\" --run-index={index}",
+            ("PERFLAB_SCALE", scale));
 
     if (!File.Exists(runPath))
     {
@@ -171,25 +196,56 @@ if (provenance.GitDirty)
 
 return 0;
 
-static async Task<ProfileCatalog> ReadCatalogAsync(string suiteProject)
+static async Task<string> ReadK6VersionAsync()
 {
-    using Process process = Process.Start(new ProcessStartInfo("dotnet")
+    using Process process = Process.Start(new ProcessStartInfo("k6", "version")
     {
-        Arguments = $"run --project \"{suiteProject}\" --no-build -- --list",
         RedirectStandardOutput = true,
         UseShellExecute = false,
     })!;
 
+    string output = await process.StandardOutput.ReadToEndAsync();
+    await process.WaitForExitAsync();
+
+    // "k6.exe v2.1.0 (commit/..., go1.26.4, windows/amd64)" — the version alone is
+    // what belongs in a baseline.
+    string[] parts = output.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    return parts.FirstOrDefault(p => p.StartsWith('v'))?.TrimStart('v') ?? "unknown";
+}
+
+static async Task<ProfileCatalog> ReadCatalogAsync(string fileName, string arguments, string? k6Version)
+{
+    ProcessStartInfo startInfo = new(fileName, arguments)
+    {
+        RedirectStandardOutput = true,
+        UseShellExecute = false,
+    };
+
+    if (k6Version is not null)
+    {
+        startInfo.Environment["PERFLAB_LIST"] = "1";
+        startInfo.Environment["K6_VERSION"] = k6Version;
+    }
+
+    using Process process = Process.Start(startInfo)!;
+
     string json = await process.StandardOutput.ReadToEndAsync();
     await process.WaitForExitAsync();
 
-    // The build may print ahead of the JSON, so take everything from the first
-    // brace onward.
+    // Both tools wrap the JSON in console output: a banner before it, and in k6's
+    // case a progress line after. Deserialize is strict about trailing data, so
+    // read exactly one value from the first brace and ignore whatever follows.
     int start = json.IndexOf('{', StringComparison.Ordinal);
 
-    return start >= 0
-        ? JsonSerializer.Deserialize<ProfileCatalog>(json[start..], ResultJson.Options)!
-        : throw new InvalidOperationException("the suite did not return a profile catalog");
+    if (start < 0)
+    {
+        throw new InvalidOperationException("the suite did not return a profile catalog");
+    }
+
+    Utf8JsonReader reader = new(Encoding.UTF8.GetBytes(json[start..]));
+
+    return JsonSerializer.Deserialize<ProfileCatalog>(ref reader, ResultJson.Options)
+        ?? throw new InvalidOperationException("the suite returned an empty profile catalog");
 }
 
 static async Task<int> RunAsync(string fileName, string arguments, params (string Key, string Value)[] environment)
