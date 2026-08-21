@@ -1,6 +1,7 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.NBomber.Thresholds;
 
 namespace PerfLab.NBomber.Profiles;
 
@@ -81,17 +82,38 @@ public sealed class SpikeProfile : IProfile
                 SutScenarios.PooledQueue(client, "pool_3_after"),
                 startAt: recoveryStartsAt, rate: 100, during: recovery),
 
-            // The endpoint that is supposed to shrug this off.
+            // The endpoint that is supposed to shrug this off, and the only part of
+            // this profile that carries objectives.
+            //
+            // The pool plateaus above deliberately assert nothing. Whether they
+            // recover depends on how much backlog the generator managed to build,
+            // which differs by tool — NBomber injects the full rate regardless and
+            // left p50 at 7323ms, k6 dropped what it could not deliver and recovered
+            // p50 completely. Gating on that would encode one tool's load model as
+            // a requirement on the service.
+            //
+            // Load shedding is different: it should hold under any generator, so
+            // these are real requirements.
             Plateau(
-                SutScenarios.RateLimitedSearch(client, "search_1_before"),
+                SutScenarios.RateLimitedSearch(client, "search_1_before")
+                    .WithHealthy(p50BudgetMs: 10, p99BudgetMs: 40),
                 startAt: lead, rate: 40, during: steady),
 
             Plateau(
-                SutScenarios.RateLimitedSearch(client, "search_2_burst"),
+                // Rejecting should stay cheap even at thirty times the limit. If
+                // this budget is breached the limiter has started queueing rather
+                // than refusing, which converts a visible 429 into an invisible
+                // slowdown.
+                SutScenarios.RateLimitedSearch(client, "search_2_burst")
+                    .WithHealthy(p50BudgetMs: 50, p99BudgetMs: 1_500),
                 startAt: burstStartsAt, rate: 1_200, during: burst),
 
             Plateau(
-                SutScenarios.RateLimitedSearch(client, "search_3_after"),
+                // The recovery assertion. Same offered rate as "before", so the
+                // budget is the same: a protected endpoint should be indistinguishable
+                // from its pre-spike self.
+                SutScenarios.RateLimitedSearch(client, "search_3_after")
+                    .WithHealthy(p50BudgetMs: 10, p99BudgetMs: 40),
                 startAt: recoveryStartsAt, rate: 40, during: recovery),
         ];
     }

@@ -36,4 +36,31 @@ public static class RunLength
     /// seconds would leave exactly the cold-start samples it exists to exclude.
     /// </summary>
     public static TimeSpan WarmUp { get; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Warm-up for a scenario of the given measured duration.
+    ///
+    /// NBomber rejects a warm-up longer than the scenario it precedes, and warm-up
+    /// here is deliberately not scaled — so at low scale factors the fixed ten
+    /// seconds can exceed a shortened measured window and the run fails outright
+    /// with an internal error.
+    ///
+    /// Clamping is the least-bad resolution, but it is not free: a shortened
+    /// warm-up leaves some of the cold-start samples it exists to exclude. Hence
+    /// the warning rather than silence. A scaled run is already flagged as not a
+    /// baseline; this says which specific property it lost.
+    /// </summary>
+    public static TimeSpan WarmUpFor(TimeSpan measured)
+    {
+        if (WarmUp <= measured)
+        {
+            return WarmUp;
+        }
+
+        Console.WriteLine(
+            $"warning:  warm-up clamped from {WarmUp.TotalSeconds:0.#}s to {measured.TotalSeconds:0.#}s " +
+            "to fit the scaled window; cold-start samples will leak into the percentiles");
+
+        return measured;
+    }
 }

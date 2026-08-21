@@ -126,4 +126,32 @@ public static class ServiceLevelObjectives
         scenario.WithThresholds(
             Threshold.Create(stats => stats.Ok.Latency.Percent99 <= 50),
             Threshold.Create(stats => stats.Fail.Request.Count == 0));
+
+    /// <summary>
+    /// The minimum any scenario should satisfy: nothing failed.
+    ///
+    /// Deliberately separate from the latency objectives above. A shape that is
+    /// exploring capacity has no business asserting a latency budget — it is
+    /// supposed to end above the knee — but it still has business asserting that
+    /// the requests it made were answered. Without this, exploratory profiles
+    /// evaluate zero objectives, and a gate reduced to zero checks still exits 0.
+    /// </summary>
+    public static ScenarioProps WithNoFailures(this ScenarioProps scenario) =>
+        scenario.WithThresholds(
+            Threshold.Create(stats => stats.Fail.Request.Count == 0));
+
+    /// <summary>
+    /// A scenario expected to be comfortably healthy: no failures, and a latency
+    /// ceiling supplied by the caller because only the caller knows what the
+    /// endpoint is doing.
+    ///
+    /// Used for the low rungs of a capacity ladder and for a spike's recovery
+    /// plateau, where the assertion is not "this is fast" but "this is behaving
+    /// as it did before we did anything to it".
+    /// </summary>
+    public static ScenarioProps WithHealthy(this ScenarioProps scenario, double p50BudgetMs, double p99BudgetMs) =>
+        scenario.WithThresholds(
+            Threshold.Create(stats => stats.Fail.Request.Count == 0),
+            Threshold.Create(stats => stats.Ok.Latency.Percent50 <= p50BudgetMs),
+            Threshold.Create(stats => stats.Ok.Latency.Percent99 <= p99BudgetMs));
 }

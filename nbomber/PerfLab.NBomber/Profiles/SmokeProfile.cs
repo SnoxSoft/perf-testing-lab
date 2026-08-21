@@ -1,6 +1,7 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.NBomber.Thresholds;
 
 namespace PerfLab.NBomber.Profiles;
 
@@ -53,6 +54,9 @@ public sealed class SmokeProfile : IProfile
     /// </summary>
     private static ScenarioProps Fixed(ScenarioProps scenario, int iterations) =>
         scenario
+            // Every scenario asserts it was answered. A smoke run with no objectives
+            // at all would exit 0 on a service that returned 500s to everything.
+            .WithNoFailures()
             .WithoutWarmUp()
             .WithLoadSimulations(Simulation.IterationsForConstant(copies: 1, iterations: iterations));
 }

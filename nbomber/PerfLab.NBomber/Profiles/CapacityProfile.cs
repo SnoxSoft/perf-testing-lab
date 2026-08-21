@@ -1,6 +1,7 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.NBomber.Thresholds;
 
 namespace PerfLab.NBomber.Profiles;
 
@@ -46,6 +47,8 @@ public sealed class CapacityProfile : IProfile
     private readonly ScenarioFactory _factory;
     private readonly int[] _ratesPerSecond;
     private readonly int _warmUpRate;
+    private readonly double _healthyP50Ms;
+    private readonly double _healthyP99Ms;
 
     public CapacityProfile(
         string name,
@@ -53,13 +56,17 @@ public sealed class CapacityProfile : IProfile
         ScenarioFactory factory,
         int[] ratesPerSecond,
         int warmUpRate,
-        string predictedCeiling)
+        string predictedCeiling,
+        double healthyP50Ms,
+        double healthyP99Ms)
     {
         Name = name;
         _endpoint = endpoint;
         _factory = factory;
         _ratesPerSecond = ratesPerSecond;
         _warmUpRate = warmUpRate;
+        _healthyP50Ms = healthyP50Ms;
+        _healthyP99Ms = healthyP99Ms;
         Question = $"Where is the knee for {endpoint}? Predicted ceiling: {predictedCeiling}";
     }
 
@@ -106,8 +113,22 @@ public sealed class CapacityProfile : IProfile
 
             // Zero-padded index keeps the report rows in ladder order rather
             // than lexicographic order, so the knee reads top to bottom.
+            ScenarioProps rung = _factory(client, $"{_endpoint}_{i + 1:00}_at_{rate}rps");
+
+            // Only the lowest rung carries objectives, and that is the point.
+            //
+            // A ladder is supposed to end above the knee, so a latency budget on
+            // the upper rungs would fail by design. The lowest rung is different:
+            // it sits far below capacity, so if it is unhealthy the ladder is
+            // measuring a broken endpoint and every rung above it is noise. This
+            // is the assertion that a capacity run is worth reading at all.
+            if (i == 0)
+            {
+                rung = rung.WithHealthy(_healthyP50Ms, _healthyP99Ms);
+            }
+
             ladder.Add(
-                _factory(client, $"{_endpoint}_{i + 1:00}_at_{rate}rps")
+                rung
                     .WithoutWarmUp()
                     .WithLoadSimulations(
                         Simulation.Pause(warmUp + step * i),
@@ -136,7 +157,12 @@ public sealed class CapacityProfile : IProfile
         factory: SutScenarios.PooledQueue,
         ratesPerSecond: [100, 200, 300, 350, 400, 450, 500],
         warmUpRate: 50,
-        predictedCeiling: "400 rps (20 connections / 50ms hold)");
+        predictedCeiling: "400 rps (20 connections / 50ms hold)",
+
+        // At 100 rps the pool is at 27% utilisation, so latency should be the 54ms
+        // hold and nothing else.
+        healthyP50Ms: 70,
+        healthyP99Ms: 150);
 
     /// <summary>
     /// The global lock: a single-server queue rather than the pool's twenty.
@@ -162,7 +188,11 @@ public sealed class CapacityProfile : IProfile
         factory: SutScenarios.LockContention,
         ratesPerSecond: [25, 50, 75, 100, 125, 150, 175],
         warmUpRate: 15,
-        predictedCeiling: "~154 rps (serialised critical section, ~6.5ms observed)");
+        predictedCeiling: "~154 rps (serialised critical section, ~6.5ms observed)",
+
+        // 25 rps is 16% utilisation on a serialised resource: essentially no queue.
+        healthyP50Ms: 25,
+        healthyP99Ms: 60);
 
     /// <summary>
     /// The measurement ceiling for the whole lab: generator plus framework, with
@@ -188,5 +218,10 @@ public sealed class CapacityProfile : IProfile
         factory: SutScenarios.GeneratorCeiling,
         ratesPerSecond: [2_000, 4_000, 6_000, 8_000, 10_000, 12_000, 14_000],
         warmUpRate: 1_000,
-        predictedCeiling: "~10,000 rps at 6.65ms; strain from 12,000 rps");
+        predictedCeiling: "~10,000 rps at 6.65ms; strain from 12,000 rps",
+
+        // A trivial handler at 2,000 rps. If this is slow, nothing else measured
+        // today means anything.
+        healthyP50Ms: 20,
+        healthyP99Ms: 100);
 }

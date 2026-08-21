@@ -1,6 +1,7 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.NBomber.Thresholds;
 
 namespace PerfLab.NBomber.Profiles;
 
@@ -74,9 +75,17 @@ public sealed class StressProfile : IProfile
         {
             int rate = RatesPerSecond[i];
 
+            // Arm A carries an objective; arm B deliberately does not.
+            //
+            // The whole finding is that unbounded async in-flight work is harmless,
+            // so arm A failing is a regression worth stopping for: it would mean
+            // something now bounds a path that previously had no limit. Arm B is
+            // expected to fail heavily — asserting anything there would fail by
+            // design.
             scenarios.Add(
                 Rung(
-                    SutScenarios.SlowDependency(client, $"A_free_{i + 1:00}_at_{rate}rps"),
+                    SutScenarios.SlowDependency(client, $"A_free_{i + 1:00}_at_{rate}rps")
+                        .WithNoFailures(),
                     startAt: armAStartsAt + (step * i), rate: rate, during: step));
 
             scenarios.Add(

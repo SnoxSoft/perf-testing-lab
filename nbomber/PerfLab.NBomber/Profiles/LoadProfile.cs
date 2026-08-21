@@ -111,8 +111,12 @@ public sealed class LoadProfile : IProfile
     /// large enough to *be* p95.
     /// </summary>
     private static ScenarioProps Steady(ScenarioProps scenario, int copies) =>
+        // Measured window computed once, so the warm-up can be clamped to fit it.
+        Steady(scenario, copies, RunLength.Minutes(1));
+
+    private static ScenarioProps Steady(ScenarioProps scenario, int copies, TimeSpan during) =>
         scenario
-            .WithWarmUpDuration(RunLength.WarmUp)
+            .WithWarmUpDuration(RunLength.WarmUpFor(during))
             .WithLoadSimulations(
-                Simulation.KeepConstant(copies: copies, during: RunLength.Minutes(1)));
+                Simulation.KeepConstant(copies: copies, during: during));
 }

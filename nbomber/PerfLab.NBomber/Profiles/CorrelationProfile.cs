@@ -1,6 +1,7 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.NBomber.Thresholds;
 
 namespace PerfLab.NBomber.Profiles;
 
@@ -47,11 +48,18 @@ public sealed class CorrelationProfile : IProfile
         return
         [
             AuthScenarios.Naive(client)
-                .WithWarmUpDuration(RunLength.WarmUp)
+                .WithNoFailures()
+                .WithWarmUpDuration(RunLength.WarmUpFor(duration))
                 .WithLoadSimulations(
                     Simulation.KeepConstant(copies: VirtualUsers, during: duration)),
 
             AuthScenarios.Cached(client)
+                // The protected endpoint is cheap and must stay cheap in both arms.
+                // If this moves, the difference between the arms is not what it
+                // appears to be.
+                .WithThresholds(
+                    Threshold.Create("orders", step => step.Ok.Latency.Percent99 <= 50),
+                    Threshold.Create(stats => stats.Fail.Request.Count == 0))
                 .WithoutWarmUp()
                 .WithLoadSimulations(
                     Simulation.Pause(RunLength.WarmUp + duration + gap),
