@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- Inherit the repository-wide settings first. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      xunit.v3 ships two runners: its own console runner (the default) and a
+      Microsoft.Testing.Platform host. Only the MTP host speaks the protocol
+      `dotnet test` uses, so without this the executable runs tests perfectly
+      when launched directly and reports "Zero tests ran" under `dotnet test`.
+
+      Scoped to tests/ via Directory.Build.props rather than set per project, so
+      a test project added later cannot silently miss it and leave the solution
+      with a mix of runners.
+
+      The complementary half of this — opting `dotnet test` itself into MTP mode
+      — lives in global.json at the repository root. On the .NET 10 SDK both are
+      required; TestingPlatformDotnetTestSupport is the .NET 9 equivalent and is
+      deliberately not set.
+    -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+</Project>

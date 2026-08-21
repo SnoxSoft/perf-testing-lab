@@ -4,13 +4,16 @@
     <RootNamespace>PerfLab.Sut.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <!--
-      xunit.v3 runs on Microsoft.Testing.Platform, so the test project is a
+      xunit.v3 runs on Microsoft.Testing.Platform, so this test project is a
       self-executing console application rather than a library loaded by an
-      external runner. Neither Microsoft.NET.Test.Sdk nor a VSTest adapter is
-      needed, and on the .NET 10 SDK including them actively breaks the run.
+      external runner. It needs no VSTest adapter and no Microsoft.NET.Test.Sdk.
+
+      The `dotnet test` opt-in lives in global.json at the repository root.
+      TestingPlatformDotnetTestSupport is deliberately absent: that property
+      belongs to the legacy VSTest mode, which the .NET 10 SDK no longer
+      supports for MTP projects.
     -->
     <OutputType>Exe</OutputType>
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
 
   <ItemGroup>
