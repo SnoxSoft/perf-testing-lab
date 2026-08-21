@@ -14,9 +14,18 @@ pinned CPU and memory limit. Every load shape exists to expose one of them.
 Because the target is controlled, a prediction can be made before a run and
 checked against it afterwards, which is the only way to know the method works.
 
-The eventual aim is the same suite written twice, in NBomber and in k6, so the
-two are directly comparable. Both halves now exist and run through the same
-harness; see **Status** below.
+The same suite is written twice, in NBomber and in k6, driving the same target
+through the same shapes and emitting the same result schema — so the two are
+directly comparable rather than compared by eye.
+
+Three documents carry the substance:
+
+- **[docs/findings.md](docs/findings.md)** — fifteen findings with the numbers
+  behind them, and what each means for a service that is not this one.
+- **[docs/methodology.md](docs/methodology.md)** — the rules those findings
+  produced, and how to measure so that a result is worth believing.
+- **[docs/tool-comparison.md](docs/tool-comparison.md)** — NBomber against k6 on
+  everything actually encountered, licensing included.
 
 ## Licensing, up front
 
@@ -118,16 +127,6 @@ entirely meaningless graph.
 > between xunit.v3 4.0.0's Microsoft.Testing.Platform adapter and the .NET 10
 > SDK's new `dotnet test` mode. Use the command above.
 
-Three documents carry the substance:
-
-- **[docs/findings.md](docs/findings.md)** — fifteen findings with the numbers
-  behind them, and what each means for a service that is not this one.
-- **[docs/methodology.md](docs/methodology.md)** — the rules those findings
-  produced, and how to measure so that a result is worth believing.
-- **[docs/tool-comparison.md](docs/tool-comparison.md)** — NBomber against k6 on
-  everything actually encountered, licensing included.
-
-
 ## The system under test
 
 Each route is a deliberate failure mode, individually configurable so a run
@@ -201,12 +200,12 @@ Built in phases; this tracks what actually runs today.
 - [x] Findings, methodology and a committed baseline for the load profile
 - [x] CI pipelines — correctness on pull requests, shapes nightly
 
-**No measured results are published in this repository yet.** The harness that
-makes them publishable now exists; the baselines themselves land with the k6
-suite, so that both tools are measured the same way on the same commit rather
-than one being retrofitted to match the other.
+**The load profile has a committed baseline; the other shapes do not.** See
+[docs/baselines/](docs/baselines/) for what is measured and why the rest is
+single-run — the capacity ladders take about five minutes per repetition per
+tool and endurance eighteen, so baselining them properly is an overnight job.
 
-For the record, the reproducibility the harness reports is good: across three
-runs of the load profile, the queue-bound endpoints held their p50 to within
-0.06%, and nothing exceeded the 10% noise threshold. Absolute throughput does
-shift with run length, so only like-scale runs are comparable.
+The reproducibility is good where it has been measured: across three runs of the
+load profile the queue-bound endpoints held their p50 to within 0.2%, and the two
+suites agreed with each other to 0.21%. Absolute throughput shifts with run
+length, so only like-scale runs are comparable.
