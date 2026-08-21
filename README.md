@@ -33,7 +33,8 @@ Three documents carry the substance:
 requires a paid Business or Enterprise licence, and the runner prints that
 warning after every run. Versions 4 and earlier were Apache-2.0; version 5
 onward is closed-source. This repository is a personal-use project. Read
-[the NBomber licence](https://nbomber.com/docs/getting-started/license/) before
+[the NBomber licence](https://nbomber.com/docs/getting-started/license/) and
+[NOTICE.md](NOTICE.md) before
 adopting any of it at work.
 
 **k6 is AGPL-3.0** and free to self-host, commercially included.

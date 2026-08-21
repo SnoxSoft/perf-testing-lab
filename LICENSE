@@ -20,19 +20,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
-
-NOTE ON THIRD-PARTY LOAD TESTING TOOLS
-
-This licence covers only the code in this repository. The load testing tools
-it drives carry their own terms:
-
-  NBomber  Proprietary. Free for personal use only; organisational use
-           requires a paid Business or Enterprise licence. Versions 4 and
-           earlier were Apache-2.0. See https://nbomber.com/docs/getting-started/license/
-           and docs/tool-comparison.md before using any of the NBomber
-           material here at work.
-
-  k6       AGPL-3.0. Free to self-host, including commercially.
-
-Neither tool is redistributed here.
