@@ -1,0 +1,105 @@
+name: pull request
+
+# What CI can and cannot gate here, because the distinction matters more than the
+# YAML.
+#
+# A GitHub-hosted runner has two cores, shared, with no guarantee about what else
+# is happening on the host. The whole method in this repository depends on a
+# target with pinned resources and measured headroom — see docs/methodology.md —
+# and none of that is available. So CI gates **correctness**, not performance:
+#
+#   - the build, with warnings as errors
+#   - the pathology tests, which assert the target still misbehaves as designed
+#   - the smoke profile, which asserts every scenario is answered
+#   - slo-breach, which asserts the gate itself still fires
+#
+# It deliberately does not run the load profile. Its latency budgets are derived
+# from a two-core container with 40-60% headroom, and on a contended shared runner
+# they would flap — and a gate that fails on noise is disabled within a fortnight.
+# Performance gating belongs on dedicated hardware; see nightly.yml.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  correctness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          # global.json pins the SDK feature band; this honours it.
+          global-json-file: global.json
+
+      - name: Build
+        # Directory.Build.props sets TreatWarningsAsErrors, so this is also the
+        # analyser and vulnerable-dependency gate. NU1902 caught a transitive
+        # OpenTelemetry advisory once already.
+        run: dotnet build --nologo
+
+      - name: Start the target
+        run: |
+          docker compose up -d --build
+          # The cold-start pathology delays the first request on purpose, so the
+          # healthcheck needs a moment. Fail loudly rather than proceeding into a
+          # run that would report transport errors.
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/health > /dev/null 2>&1; then
+              echo "target healthy after ~${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "target did not become healthy"
+          docker compose logs --tail=50 sut
+          exit 1
+
+      - name: Pathology tests
+        # Asserts the intended incorrect behaviour is still present. A cache that
+        # quietly started evicting would make every endurance run meaningless, and
+        # this is the only thing that would notice.
+        #
+        # `dotnet test` is not used: see the known issue in README.md.
+        run: dotnet run --project tests/PerfLab.Sut.Tests
+
+      - name: Smoke — NBomber
+        # Asserts every scenario connects, authenticates, parses and is answered.
+        # Bounded by iterations rather than duration, so it takes the same time
+        # here as on a laptop.
+        working-directory: nbomber/PerfLab.NBomber
+        run: dotnet run -- smoke
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Smoke — k6
+        run: k6 run --env PROFILE=smoke k6/main.js
+
+      - name: Gate check — slo-breach must fail
+        # A threshold that never fires is indistinguishable from one that cannot
+        # fire. This profile is designed to breach, so a zero exit code here means
+        # the gate has been broken or disabled — which is exactly the regression
+        # nothing else would catch.
+        #
+        # The margin is enormous (2480ms against a 70ms budget), so it holds even
+        # on a contended runner where a tighter objective would not.
+        working-directory: nbomber/PerfLab.NBomber
+        run: |
+          if dotnet run -- slo-breach; then
+            echo "slo-breach exited 0 — the service level gate is not working"
+            exit 1
+          fi
+          echo "slo-breach failed as expected; the gate works"
+
+      - name: Target logs on failure
+        if: failure()
+        run: docker compose logs --tail=100

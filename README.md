@@ -194,7 +194,7 @@ Built in phases; this tracks what actually runs today.
 - [x] k6 suite mirroring the NBomber one — 9 profiles, same schema, same harness
 - [x] Prometheus and Grafana as an optional compose profile (k6 only)
 - [x] Findings, methodology and a committed baseline for the load profile
-- [ ] CI pipelines
+- [x] CI pipelines — correctness on pull requests, shapes nightly
 
 **No measured results are published in this repository yet.** The harness that
 makes them publishable now exists; the baselines themselves land with the k6

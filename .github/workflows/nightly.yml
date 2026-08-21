@@ -1,0 +1,111 @@
+name: nightly
+
+# The performance shapes, on a schedule.
+#
+# Read the caveat before reading any number this produces. A GitHub-hosted runner
+# has two shared cores, and this repository's entire method rests on a target with
+# pinned resources and verified headroom. Latency figures from here are **not
+# baselines** and must not be compared with the ones under docs/baselines/, which
+# were measured on dedicated hardware at a known utilisation.
+#
+# What it is genuinely useful for:
+#
+#   - the long shapes still run to completion and are not silently broken
+#   - the leak is still detectable at all, which is a behavioural assertion rather
+#     than a timing one
+#   - the two suites still agree with each other, since both run on the same
+#     contended host and the comparison is internally consistent
+#
+# The right home for real performance gating is a self-hosted runner on dedicated
+# hardware. Point `runs-on` at it, drop PERFLAB_SCALE, and the numbers become
+# comparable with the committed baselines.
+
+on:
+  schedule:
+    # 02:00 UTC. Nothing depends on the hour beyond avoiding the working day.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Duration multiplier (1.0 is the full shape)
+        required: false
+        default: '0.5'
+
+jobs:
+  shapes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Halved by default. The full endurance profile is eighteen minutes and the
+      # capacity ladders about five each; on a shared runner producing numbers
+      # that are not baselines anyway, the shape matters and the duration does
+      # not.
+      PERFLAB_SCALE: ${{ github.event.inputs.scale || '0.5' }}
+
+    strategy:
+      # Sequential, not parallel. Two suites hammering one target would make each
+      # one's result partly caused by the other — the same reason the stress and
+      # endurance profiles run their arms sequentially.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        tool: [nbomber, k6]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: grafana/setup-k6-action@v1
+        if: matrix.tool == 'k6'
+
+      - name: Start the target
+        run: |
+          docker compose up -d --build
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8080/health > /dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          docker compose logs --tail=50 sut
+          exit 1
+
+      - name: Capacity — pool
+        run: dotnet run --project tools/PerfLab.Bench -- capacity-pool --tool=${{ matrix.tool }} --repeats=2 --scale=$PERFLAB_SCALE
+
+      - name: Capacity — lock
+        run: dotnet run --project tools/PerfLab.Bench -- capacity-lock --tool=${{ matrix.tool }} --repeats=2 --scale=$PERFLAB_SCALE
+
+      - name: Spike
+        run: dotnet run --project tools/PerfLab.Bench -- spike --tool=${{ matrix.tool }} --repeats=2 --scale=$PERFLAB_SCALE
+
+      - name: Correlation
+        run: dotnet run --project tools/PerfLab.Bench -- correlation --tool=${{ matrix.tool }} --repeats=2 --scale=$PERFLAB_SCALE
+
+      - name: Endurance
+        # The bench harness restarts the target between repetitions here, because
+        # this profile declares requiresFreshTarget — a second run against a heap
+        # the first one inflated measures something else entirely.
+        #
+        # continue-on-error because the heap budget is *expected* to breach: the
+        # target has a deliberate leak. The assertion that matters is that the run
+        # completed and the leak was detected, which the summary records.
+        continue-on-error: true
+        run: dotnet run --project tools/PerfLab.Bench -- endurance --tool=${{ matrix.tool }} --repeats=2 --scale=$PERFLAB_SCALE
+
+      - name: Publish results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.tool }}
+          # Every summary carries its own provenance — commit, host, target limits
+          # and the target's configuration — so an artefact downloaded weeks later
+          # still says what produced it.
+          path: results/
+          retention-days: 30
+
+      - name: Target logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
