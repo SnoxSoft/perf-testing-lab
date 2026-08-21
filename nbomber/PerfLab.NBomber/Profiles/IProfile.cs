@@ -40,5 +40,20 @@ public interface IProfile
     /// </summary>
     double? HeapGrowthBudgetMb => null;
 
+    /// <summary>
+    /// Whether repeated runs of this profile need the target restarted between
+    /// them.
+    ///
+    /// True for anything whose result depends on accumulated server state. A
+    /// second endurance run against a process already carrying 90MB of leaked
+    /// cache does not measure the same thing as the first, and averaging the two
+    /// produces a number that describes neither.
+    ///
+    /// Latency profiles do not need this — they need serialising, which running
+    /// one at a time already provides. Memory profiles need serialising *and*
+    /// isolating.
+    /// </summary>
+    bool RequiresFreshTarget => HeapGrowthBudgetMb is not null;
+
     ScenarioProps[] Build(HttpClient client);
 }

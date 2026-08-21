@@ -1,12 +1,16 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
 using NBomber.Contracts;
-
 using NBomber.Contracts.Stats;
 using NBomber.CSharp;
 using PerfLab.NBomber;
 using PerfLab.NBomber.Profiles;
 using PerfLab.NBomber.Scenarios;
+using PerfLab.Results;
 
-// perflab-nbomber <profile> [--scenario=<name>] [nbomber args...]
+// perflab-nbomber <profile> [--scenario=X] [--run-index=N] [--results=PATH] [nbomber args...]
+// perflab-nbomber --list
 IProfile[] profiles =
 [
     new SmokeProfile(),
@@ -21,6 +25,39 @@ IProfile[] profiles =
     new SloBreachProfile(),
 ];
 
+// Informational version carries a "+gitsha" suffix; the version alone is what
+// belongs in a committed baseline.
+string toolVersion = (typeof(Scenario).Assembly
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+    ?? typeof(Scenario).Assembly.GetName().Version?.ToString()
+    ?? "unknown").Split('+')[0];
+
+// Machine-readable self-description, so the bench harness does not have to keep
+// its own copy of which profiles exist and how they behave.
+if (args.Contains("--list", StringComparer.OrdinalIgnoreCase))
+{
+    ProfileCatalog catalog = new()
+    {
+        Tool = "nbomber",
+        ToolVersion = toolVersion,
+        Profiles =
+        [
+            .. profiles.Select(p => new ProfileInfo
+            {
+                Name = p.Name,
+                Question = p.Question,
+                FailOnErrors = p.FailOnErrors,
+                HeapGrowthBudgetMb = p.HeapGrowthBudgetMb,
+                RequiresFreshTarget = p.RequiresFreshTarget,
+            }),
+        ],
+    };
+
+    // Nothing but JSON on stdout in this mode; the caller is a program.
+    Console.WriteLine(JsonSerializer.Serialize(catalog, ResultJson.Options));
+    return 0;
+}
+
 string requested = args.Length > 0 ? args[0] : "smoke";
 
 IProfile? profile = profiles.FirstOrDefault(p =>
@@ -31,25 +68,29 @@ if (profile is null)
     Console.Error.WriteLine($"Unknown profile '{requested}'. Available profiles:");
     foreach (IProfile available in profiles)
     {
-        Console.Error.WriteLine($"  {available.Name,-10} {available.Question}");
+        Console.Error.WriteLine($"  {available.Name,-14} {available.Question}");
     }
 
     return 2;
 }
 
+string? Flag(string name) => args
+    .FirstOrDefault(a => a.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+    ?[name.Length..];
+
 // Running a single scenario is how you get attributable numbers. Every
 // database-backed scenario draws on the same connection pool, so in the full mix
 // one endpoint's latency is partly caused by its neighbours — which is realistic,
 // and useless when the question is "how fast is this one endpoint".
-const string ScenarioFlag = "--scenario=";
+string? targetScenario = Flag("--scenario=");
+string? resultsPath = Flag("--results=");
+int runIndex = int.TryParse(Flag("--run-index="), out int parsed) ? parsed : 1;
 
-string? targetScenario = args
-    .FirstOrDefault(a => a.StartsWith(ScenarioFlag, StringComparison.OrdinalIgnoreCase))
-    ?[ScenarioFlag.Length..];
+string[] ownFlags = ["--scenario=", "--results=", "--run-index="];
 
 string[] nbomberArgs = args
     .Skip(1)
-    .Where(a => !a.StartsWith(ScenarioFlag, StringComparison.OrdinalIgnoreCase))
+    .Where(a => !ownFlags.Any(f => a.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
     .ToArray();
 
 Console.WriteLine($"profile:  {profile.Name}");
@@ -76,7 +117,7 @@ NBomberContext context = NBomberRunner
     .WithTestName(profile.Name)
     // Reports are written per profile so two shapes never overwrite each other.
     // This folder is gitignored: generated output does not belong in history,
-    // while the curated baselines under results/ do.
+    // while curated baselines are copied into docs/ deliberately.
     .WithReportFolder($"reports/{profile.Name}")
     .WithReportFormats(ReportFormat.Html, ReportFormat.Md, ReportFormat.Csv, ReportFormat.Txt);
 
@@ -85,25 +126,49 @@ if (targetScenario is not null)
     context = context.WithTargetScenarios(targetScenario);
 }
 
+DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+long startedTicks = Stopwatch.GetTimestamp();
+
 NodeStats stats = context.Run(nbomberArgs);
 
-// A non-zero exit code is what makes this usable as a CI gate. Without it a
-// breached service level objective is just text in a log that nobody reads.
-//
-// Thresholds are checked before failures on purpose. Saturation shows up as a
-// latency breach long before it shows up as an error, so the threshold result is
-// both the earlier and the more informative signal — the pool endpoint served
-// 500 req/s at 7.1 seconds latency with zero failed requests.
+TimeSpan elapsed = Stopwatch.GetElapsedTime(startedTicks);
+
+// Thresholds are evaluated before failure counts on purpose. Saturation shows up
+// as a latency breach long before it shows up as an error — the pool endpoint
+// served 500 req/s at 7.1 seconds latency with zero failed requests.
 ThresholdResult[] breached = stats.Thresholds
     .Where(threshold => threshold.IsFailed)
     .ToArray();
 
-// What the observer scenario saw on the server. For the stress and endurance
-// shapes this is the actual result: client latency says something is wrong,
-// while in-flight count and heap growth say what.
 SutObserver.Observation observed = SutObserver.Current;
 
-bool heapBudgetBreached = false;
+bool heapBudgetBreached =
+    profile.HeapGrowthBudgetMb is double budget
+    && observed.Samples > 0
+    && observed.HeapGrowthMb > budget;
+
+ScenarioStats[] withFailures = stats.ScenarioStats
+    .Where(scenario => scenario.Fail.Request.Count > 0)
+    .ToArray();
+
+RunOutcome outcome =
+    breached.Length > 0 ? RunOutcome.ThresholdBreached
+    : heapBudgetBreached ? RunOutcome.HeapBudgetBreached
+    : withFailures.Length > 0 ? RunOutcome.FailuresRecorded
+    : RunOutcome.Passed;
+
+// Written before any early return, so a breaching run is still recorded. A
+// harness that only receives results from successful runs cannot aggregate the
+// interesting ones.
+if (resultsPath is not null)
+{
+    ResultJson.Write(
+        resultsPath,
+        RunReporter.Build(stats, profile, toolVersion, runIndex, startedAt, elapsed, outcome));
+
+    Console.WriteLine();
+    Console.WriteLine($"run result: {resultsPath}");
+}
 
 if (observed.Samples > 0)
 {
@@ -123,21 +188,16 @@ if (observed.Samples > 0)
     Console.WriteLine($"  threads                      {observed.PeakThreadCount,10:N0}");
     Console.WriteLine($"  gen2 collections             {observed.Gen2Collections,10:N0}");
 
-    if (profile.HeapGrowthBudgetMb is double budget)
+    if (profile.HeapGrowthBudgetMb is double shown)
     {
-        heapBudgetBreached = observed.HeapGrowthMb > budget;
-
         Console.WriteLine(
-            $"  heap growth budget           {budget,10:N1} MB " +
+            $"  heap growth budget           {shown,10:N1} MB " +
             $"-> {(heapBudgetBreached ? "BREACHED" : "within budget")}");
 
-        // Extrapolation is the point of a soak. A growth rate only becomes a
-        // finding when it is expressed as time until the limit is reached.
-        //
-        // Against resident memory rather than the managed heap, because that is
-        // what the container limit applies to. Extrapolating the heap instead
-        // flatters the result: most of the limit is already spent on the runtime
-        // before anything leaks.
+        // Extrapolation against resident memory, not the managed heap, because
+        // that is what the container limit applies to. Using the heap flatters
+        // the result: most of the limit is spent on the runtime before anything
+        // leaks.
         const double ContainerLimitMb = 1024;
 
         if (observed.MinutesToLimit(ContainerLimitMb) is double minutes)
@@ -149,9 +209,9 @@ if (observed.Samples > 0)
     }
 }
 
-// Always report how many thresholds were evaluated, including on a clean run.
-// A threshold that never fires is indistinguishable from a threshold that
-// cannot fire, and a gate silently reduced to zero checks still exits 0.
+// Always report how many objectives were evaluated, including on a clean run. A
+// threshold that never fires is indistinguishable from one that cannot fire, and
+// a gate silently reduced to zero checks still exits 0.
 Console.WriteLine();
 Console.WriteLine(
     $"service level objectives: {stats.Thresholds.Length - breached.Length} passed, " +
@@ -186,13 +246,8 @@ if (heapBudgetBreached)
     Console.Error.WriteLine(
         $"BREACH heap growth {observed.HeapGrowthMb:N1} MB exceeds the " +
         $"{profile.HeapGrowthBudgetMb:N1} MB budget for this profile.");
-    Console.Error.WriteLine($"See reports/{profile.Name}.");
     return 1;
 }
-
-ScenarioStats[] withFailures = stats.ScenarioStats
-    .Where(scenario => scenario.Fail.Request.Count > 0)
-    .ToArray();
 
 if (withFailures.Length > 0)
 {

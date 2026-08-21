@@ -16,4 +16,8 @@
     <PackageReference Include="NBomber" Version="6.6.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../tools/PerfLab.Results/PerfLab.Results.csproj" />
+  </ItemGroup>
+
 </Project>

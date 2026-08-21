@@ -34,9 +34,12 @@ packages/
 appsettings.Development.local.json
 docker-compose.override.yml
 
-## Load test output — regenerated on every run.
-## Curated baselines live in results/baselines/ and are committed.
+## Generated output — regenerated on every run. Curated baselines are copied
+## into docs/ deliberately rather than un-ignoring anything here.
+
 nbomber/**/reports/
+reports/
+results/
 k6/output/
 *.ndjson
 
