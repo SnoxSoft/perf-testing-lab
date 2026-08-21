@@ -99,6 +99,7 @@ export {
   rateLimitedSearch,
   authNaive,
   authCached,
+  warmup,
 } from './lib/scenarios.js';
 
 export { observer } from './lib/observer.js';

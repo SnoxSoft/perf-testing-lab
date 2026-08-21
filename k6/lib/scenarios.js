@@ -149,3 +149,24 @@ function ordersFor(token, expectedUser) {
     throw new Error(`identity mismatch: expected ${expectedUser}, got ${response.json('user')}`);
   }
 }
+
+/**
+ * Warm-up traffic, run before the measured scenarios and reported separately.
+ *
+ * NBomber has WithWarmUpDuration, which runs before a scenario and discards its
+ * samples automatically. k6 has no equivalent, so warm-up has to be a scenario in
+ * its own right, with the measured scenarios offset behind it by startTime.
+ *
+ * The consequence is visible rather than hidden: a "warmup" row appears in the
+ * results and is meant to be ignored. That is arguably the better arrangement —
+ * NBomber's warm-up is invisible, so it is easy to forget whether a given profile
+ * has one.
+ *
+ * It touches the endpoints the measured scenarios use, because the costs being
+ * absorbed are per-path: JIT for that handler, and the connection pool filling.
+ */
+export function warmup() {
+  get('/api/catalog/products');
+  get('/api/queue/pooled');
+  post('/api/queue/reserve');
+}

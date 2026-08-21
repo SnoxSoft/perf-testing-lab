@@ -38,16 +38,16 @@ export function buildRunResult(data, profile, durationSeconds) {
 
 function toScenario(data, scenario) {
   const steps = (scenario.steps || []).map((step) =>
-    toMeasurement(data, `${scenario.name}__${step}`, step));
+    toMeasurement(data, `${scenario.name}__${step}`, step, scenario.seconds));
 
   return {
-    ...toMeasurement(data, scenario.name, scenario.name),
+    ...toMeasurement(data, scenario.name, scenario.name, scenario.seconds),
     statusCodes: statusCodesFor(data, scenario.name),
     steps,
   };
 }
 
-function toMeasurement(data, metricKey, name) {
+function toMeasurement(data, metricKey, name, seconds) {
   const trend = data.metrics[`dur__${metricKey}`];
   const requests = data.metrics[`reqs__${metricKey}`];
   const failures = data.metrics[`fails__${metricKey}`];
@@ -61,7 +61,10 @@ function toMeasurement(data, metricKey, name) {
     requestCount,
     okCount: requestCount - failCount,
     failCount,
-    requestsPerSecond: round((requests && requests.values && requests.values.rate) || 0),
+    // Divided by the scenario's own window, not the whole test. k6's Counter
+    // rate uses total test duration, which under-reports any scenario offset
+    // behind a warm-up by the fraction of the test it sat idle.
+    requestsPerSecond: round(seconds ? requestCount / seconds : ((requests && requests.values && requests.values.rate) || 0)),
     latency: {
       minMs: round(values.min),
       meanMs: round(values.avg),

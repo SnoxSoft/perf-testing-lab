@@ -73,3 +73,21 @@ export function offset(...secs) {
   const total = secs.reduce((a, b) => a + b, 0);
   return `${Math.round(total * 1000 * SCALE)}ms`;
 }
+
+/**
+ * Scaled duration as a number of seconds, for arithmetic.
+ *
+ * Needed because k6 computes a Counter's rate over the *whole test duration*,
+ * not the duration of the scenario that produced it. A scenario offset behind a
+ * warm-up therefore reports a rate diluted by the time it was not running:
+ * pooledQueue measured 73.9/s on a 28s test when its own 18s window carried
+ * 115.2/s.
+ *
+ * Two consequences, both handled rather than worked around. The run schema
+ * computes requests per second from the scenario's own duration, and any
+ * throughput objective is expressed as a request count over that window instead
+ * of as a rate.
+ */
+export function scaledSeconds(secs) {
+  return Math.max(1, secs * SCALE);
+}

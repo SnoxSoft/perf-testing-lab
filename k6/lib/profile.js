@@ -39,8 +39,17 @@ export function defineProfile(spec) {
     failOnErrors: spec.failOnErrors !== false,
     requiresFreshTarget: spec.requiresFreshTarget === true,
 
-    /** What metrics.register needs: names and their steps. */
-    declarations: spec.scenarios.map(({ name, steps }) => ({ name, steps })),
+    /**
+     * What metrics.register needs, plus the window each scenario actually ran
+     * for so the report can compute a real rate. k6's own Counter rate divides by
+     * the whole test duration, which under-reports any scenario offset behind a
+     * warm-up by the fraction of the test it sat idle.
+     */
+    declarations: spec.scenarios.map(({ name, steps, duration }) => ({
+      name,
+      steps,
+      seconds: parseDurationSeconds(duration),
+    })),
 
     options: {
       scenarios,
@@ -58,4 +67,25 @@ export function defineProfile(spec) {
       discardResponseBodies: false,
     },
   };
+}
+
+/**
+ * k6 durations are strings, so the measured window has to be parsed back out to
+ * divide by it. Returns null for scenarios that have no fixed duration, such as
+ * an iteration-bounded smoke scenario, in which case the report falls back to
+ * k6's own rate.
+ */
+function parseDurationSeconds(duration) {
+  if (!duration) {
+    return null;
+  }
+
+  const match = /^([\d.]+)(ms|s|m|h)$/.exec(String(duration).trim());
+
+  if (!match) {
+    return null;
+  }
+
+  const units = { ms: 0.001, s: 1, m: 60, h: 3600 };
+  return Number.parseFloat(match[1]) * units[match[2]];
 }
